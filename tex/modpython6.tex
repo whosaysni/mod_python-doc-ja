@@ -1,0 +1,334 @@
+\chapter{標準のハンドラ\label{handlers}}
+
+\section{publisher ハンドラ\label{hand-pub}}
+
+\code{publisher} ハンドラは、独自にハンドラを書かずに済ませ、迅速に
+アプリケーションを開発するための手段です。
+\citetitle[http://www.zope.org/]{Zope} の ZPublisher に影響
+を受けています。
+
+\subsection{Introduction\label{hand-pub-intro}}
+
+このハンドラを使うには、設定ファイルに以下のような行を追加します:
+\begin{verbatim}
+  <Directory /some/path>
+    SetHandler mod_python 
+    PythonHandler mod_python.publisher
+    </Directory>
+\end{verbatim}
+
+このハンドラを使うと、モジュール内の関数や変数を URL でアクセスできるように
+なります。例えば、\file{hello.py} という名の以下のようなモジュールが
+あるとしましょう:
+
+\begin{verbatim}
+  """ Publisher example """
+
+  def say(req, what="NOTHING"):
+  return "I am saying %s" % what
+
+\end{verbatim}
+
+\code{http://www.mysite.com/hello.py/say} という URL は
+\samp{I am saying NOTHING} を返します。一方
+\code{http://www.mysite.com/hello.py/say?what=hello} は
+\samp{I am saying hello} を返します。
+
+\subsection{パブリッシュのアルゴリズム\label{hand-pub-alg}}
+
+publisher ハンドラは URI を Python の変数や呼び出し可能オブジェクトに
+直接対応づけます。次に、変数の場合には文字列表現を、呼び出しオブジェクトの場合には
+呼び出した戻り値の文字列表現をそれぞれ返します。
+
+\subsubsection{トラバース\label{hand-pub-alg-trav}}
+
+publisher ハンドラは URI に指定されたモジュールを探して import します。
+モジュールの位置は \class{req.filename} 属性で決まります。
+ファイル拡張子がある場合、 import を行う前に無視します。
+
+\class{req.filename} が空の場合、モジュール名はデフォルト値の\samp{index}
+になります。
+\samp{index}.
+
+モジュールを import すると、URI の残りの部分からクエリデータ (いわゆる
+PATH_INFO) までの間の部分を使ってモジュール内のオブジェクトを探します。
+publisher ハンドラは各要素をモジュール内のPython オブジェクトに対応づけ
+ながら、パスの要素を左から右にひとつづつ\dfn{トラバース}(\dfn{traverse}) 
+します。
+
+URL に PATH_INFO がない場合、publisher ハンドラは\samp{index}
+をデフォルト値に使います。パスの最後の要素がモジュール内のオブジェクト名で、
+かつその前にある要素がディレクトリ名の場合 (モジュール名が指定されて
+いない場合)、モジュール名はデフォルト値の \samp{index} になります。
+
+以下のような場合にはトラバースを停止して\constant{HTTP_NOT_FOUND} 
+を返します:
+
+\begin{itemize}
+
+\item
+トラバースしたオブジェクトの名前がアンダースコア (\samp{\_}) で始まって
+いる場合。 逆に、Web からアクセスさせたくないオブジェクトを保護するには
+アンダースコアを使ってください。
+
+\item
+モジュールに到達した場合。セキュリティ上の理由から、モジュールはパブリッシュ
+の対象にできません。
+
+\end{itemize}
+
+パス上にオブジェクトが見つからなかった場合、クライアントに
+\constant{HTTP_NOT_FOUND} を返します。
+
+例えば、以下のような設定があるとしましょう:
+
+\begin{verbatim}
+  DocumentRoot /some/dir
+
+  <Directory /some/dir>
+  SetHandler mod_python
+  PythonHandler mod_python.publisher
+  </Directory>
+\end{verbatim}
+
+そして、以下のようなファイル\file{/some/dir/index.py} があったとします:
+
+\begin{verbatim}
+  def index(req):
+
+  return "We are in index()"
+
+  def hello(req):
+
+  return "We are in hello()"
+\end{verbatim}
+
+URI と結果は次のようになります:
+
+http://www.somehost/index/index は \samp{We are in index()} になります。
+
+http://www.somehost/index/ は \samp{We are in index()}になります。
+
+http://www.somehost/index/hello は \samp{We are in hello()}になります。
+
+http://www.somehost/hello は \samp{We are in hello()}になります。
+
+http://www.somehost/spam は \samp{404 Not Found}になります。
+
+\subsubsection{引数のマッチングと呼び出し\label{hand-pub-alg-args}}
+
+publisher ハンドラがパブリッシュ対象のオブジェクトを見つけると、
+オブジェクトが呼び出し可能オブジェクトであってクラスでない場合にはオブジェクト
+の受け取る引数のリストを取得します。次にこのリストを\code{POST} や\code{GET} 
+でクライアントから提出された HTML の各フォームデータの名前と比較します。
+引数と名前の一致するフィールドの値は、文字列として呼び出し可能オブジェクトの
+該当する引数に渡します。名前の一致しないフィールドは暗黙のまま捨てます。ただし、
+対象のオブジェクトが \code{**kwargs} 形式の引数を受け取る場合には、
+名前の一致しなかったフィールドを \code{**kwargs} 引数で渡します。
+
+パブリッシュ対象のオブジェクトが呼び出し可能オブジェクトの場合やクラスの場合、
+その文字列表現をクライアントに返します。
+
+\subsubsection{認証\label{hand-pub-alg-auth}}
+
+publisher ハンドラはモジュールや関数へのアクセスを制御する簡単な手段を
+備えています。
+
+トラバースの各ステップで、publisher ハンドラは
+\method{__auth__} や\method{__access__} 、そして\method{__auth_realm__}
+といった属性を (列挙した順番で) 探します。
+
+\method{__auth__} が定義されていて、かつ呼び出し可能オブジェクトの場合、
+\class{Request} オブジェクト、ユーザ名の入った文字列、そして
+パスワードの入った文字列、の三つの引数を使って呼び出します。
+\code{__auth__}の戻り値が偽の場合、\constant{HTTP_UNAUTHORIZED} を
+クライアントに返します (通常は、クライアント側でパスワード入力ダイアログ
+が表示されます)。
+
+\method{__auth__} が辞書の場合、ユーザ名とキー、そしてパスワードとキーに
+関連づけられた値とが一致するか調べます。キーとパスワードの両方が一致しなかった場合、
+\constant{HTTP_UNAUTHORIZED} を返します。
+この処理ではパスワードをソースコードに平文で保存せねばならないため、あまり
+安全ではありません。
+
+\method{__auth__} は定数にもできます。この場合、値が偽
+(\constant{None}, \code{0}, \code{""} など) ならば
+\constant{HTTP_UNAUTHORIZED} を返します。
+
+\code{__auth_realm__} 文字列がある場合、認証レルム (Authorization Realm)
+としてクライアントに送信されます (通常、パスワード入力ダイアログボックスの上に
+あるテキストになります)。
+
+\method{__access__} が存在し、かつ呼び出し可能オブジェクトの場合、
+\class{Request} オブジェクトとユーザ名からなる二つの引数を渡して
+呼び出します。\code{__access__} の戻り値が偽ならば、
+\constant{HTTP_FORBIDDEN} をクライアントに返します。
+
+\method{__access__} がリストの場合、ユーザ名がリストのいずれかの要素に
+一致するか調べます。ユーザ名がリスト中にない場合、
+\constant{HTTP_FORBIDDEN} を返します。
+
+\method{__auth__} と同様、\method{__access__} も定数にできます。
+
+下の例では、ユーザが\samp{eggs} でパスワードが\samp{spam} の場合にのみ
+\code{hello} 関数にアクセスできます:
+
+\begin{verbatim}
+
+  __auth_realm__ = "Members only"
+
+  def __auth__(req, user, passwd):
+
+  if user == "eggs" and passwd == "spam" or \
+  user == "joe" and passwd == "eoj":
+  return 1
+  else:
+  return 0
+
+  def __access__(req, user):
+  if user == "eggs":
+  return 1
+  else:
+  return 0
+
+  def hello(req):
+  return "hello"
+
+\end{verbatim}
+
+下の例も同じような機能を実現しますが、別のテクニックを使っています:
+
+\begin{verbatim}
+
+  __auth_realm__ = "Members only"
+  __auth__ = {"eggs":"spam", "joe":"eoj"}
+  __access__ = ["eggs"]
+
+  def hello(req):
+  return "hello"
+
+\end{verbatim}
+
+関数には属性値を代入できないため、特定の関数を保護するには関数の中で
+\code{__auth__} や \code{__access__} を関数として定義します:
+
+\begin{verbatim}
+  def sensitive(req):
+
+  def __auth__(req, user, password):
+  if user == 'spam' and password == 'eggs':
+  # let them in
+  return 1
+  else:
+  # no access
+  return 0
+
+  # something involving sensitive information
+  return 'sensitive information`
+\end{verbatim}
+
+このテクニックは\code{__auth__} や\code{__access__} を定数にしても
+通用しますが、辞書やリストの場合にはうまくいきません。
+
+\code{__auth__} や \code{__access__} のメカニズムは標準の
+\citetitle[dir-handlers-auh.html]{PythonAuthenHandler} から独立
+しています。例えば、認証にはハンドラを使い、次に認証済みのユーザが
+特定の関数にアクセスできるかを\code{__access__} リストで検証できます。
+
+\begin{notice}
+\module{mod_python} が\function{__auth__} にアクセスできるように
+するには、まず\function{__auth__}の入ったモジュールを import せねば
+なりません。この場合、たとえ\function{__auth__} を偽に設定していても
+import 操作中にモジュールレベルのコードが実行されてしまいます。
+モジュールを完全にアクセス制限したければ、Apache の \code{mod_auth} や
+\module{mod_python} の\citetitle[dir-handlers-auh.html]
+{PythonAuthenHandler} ハンドラといった他の認証メカニズムを使ってください。
+\end{notice}
+     
+\subsection{フォームデータ}
+
+引数の一致を行う過程で、publisher ハンドラは
+\citetitle[pyapi-util-fstor.html]{FieldStorage} クラスのインスタンスを
+生成します。このインスタンスへの参照は\class{Request}オブジェクトの
+\member{form}属性に入っています。
+
+\class{FieldStorage} はリクエスト中で一度しか初期化できないため、
+publisher ハンドラを使う際には自分で\class{FieldStorage} を初期化しようと
+試みてはなりません。代わりに\class{Request.form} を使ってください。
+
+
+\section{PSP ハンドラ\label{hand-psp}}
+\index{PSP}
+
+PSP ハンドラはドキュメントを\code{mod_python.psp} モジュールの
+\class{PSP} クラスで処理するハンドラです。
+
+PSP ハンドラを使いたければ、httpd の設定に以下の行を追加するだけです:
+
+\begin{verbatim}
+  AddHandler mod_python .psp
+  PythonHandler mod_python.psp
+\end{verbatim}
+
+PSP の詳しい文法は\ref{pyapi-psp} 節を参照してください。
+
+サーバの設定で\code{PythonDebug} が\code{On} になっている場合、
+(\samp{\_}) をURI の末尾に追加すると、元の PSP コードと\module{psp} 
+モジュールの生成した Python コードを横に並べた綺麗なリストを表示できます。
+デバッグに便利な機能です。
+
+\begin{notice}
+運用環境でデバッグオプションを残しておくと、遠隔のユーザが PSP ページの
+ソースコードを表示できてしまいます。
+\end{notice}
+
+\section{CGI ハンドラ\label{hand-cgi}}
+
+\index{CGI}
+
+CGI ハンドラは、\module{mod_python} 下で CGI 環境をエミュレートするための
+ハンドラです。
+
+この環境は真のCGI 環境\emph{ではなく}、Python レベルでエミュレートされた
+ものだということに注意してください。\code{stdin} および\code{stdout} は
+\code{sys.stdin} と \code{sys.stdout} で置き換わり、環境変数は辞書に
+置き換わります。このことから、CGI ハンドラの環境から\code{os.system} などで
+呼び出された外部プログラムは Python プログラム側では利用できる環境変数を
+見られないばかりか、\samp{真の} CGI 環境ではできるはずの標準入出力を使った
+結果の読み書きも行えません。
+
+このハンドラは CGI の古いコードから移行するための踏み石として提供されています。
+\module{mod_python} を使う方法として、このハンドラに長く腰を落ち着けるのは
+お勧めしません。というのは、CGI 環境はスレッド内での実行を想定していないため
+(例えば、CGI の実行には現在のディレクトリの変更が必要ですが、これは
+本来スレッドセーフではありません。cgihandler はこの問題を解決する
+ためにスレッドをロックして、マルチスレッドサーバであっても一度に一つの
+リクエストしか処理できないようにしてしまいます)、\module{mod_python}
+を使う数多くの利点を最初からだめにしてしまうようにしか実装できなくなるからです。
+
+CGI ハンドラを使いたければ、\file{.htaccess} ファイルに: 
+
+\begin{verbatim}
+  SetHandler mod_python
+  PythonHandler mod_python.cgihandler
+\end{verbatim}
+
+のように書くだけです。
+
+バージョン 2.7 からは、 cgihandler は間接的に import されたモジュールも
+正しくリロードできるようになりました。これは CGI スクリプトの呼び出し前に
+ロード済みのモジュールのリスト (sys.modules) を保存しておき、CGI スクリプト
+の実行後のリストと比較することで実現しています。 新たに import された
+モジュールは (__file__ 属性が標準Python ライブラリの起き場所を指している
+ものを除いて) sys.modules から削除され、Python に次の CGI スクリプトが再度
+そのモジュールをロードできるようにさせています。
+
+上記の動作を望まないのなら、\file{cgihandler.py} ファイルを編集して、
+\#\#\# で区切られているコードをコメントアウトしてください。
+
+テストの結果、 cgihandler は多数のファイルアップロードを処理する際に
+何らかのメモリリークを起こすことが分かっています。原因についてはまだよく
+分かっていません。この問題を回避するにはApache の
+\code{MaxRequestsPerChild} 設定をゼロでない値にしてください。
+
+

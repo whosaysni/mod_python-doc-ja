@@ -1,0 +1,2288 @@
+\chapter{Python API\label{pythonapi}}
+
+\section{複数のインタプリタ\label{pyapi-interps}}
+
+\module{mod_python} を使っている場合，普段 Python でスクリプトを書いたり
+コマンドライン上で実効する際には使わない，ある Python の機能が使われている
+ことを知っておく必要があります．この機能は Python を使っては呼び出せず，
+\citetitle[http://www.python.org/doc/current/api/api.html]{C
+言語 API} を介してのみアクセスできます．
+
+Python C API を使うと \dfn{サブインタプリタ} (\dfn{subinterpreter}) 
+を生成できます．サブインタプリタの詳細は
+\citetitle[http://www.python.org/doc/current/api/initialization.html]
+          {\cfunction{Py_NewInterpreter()}}
+関数のドキュメントに書かれています．この議論の中では，各々のサブインタプリタは
+独立した名前空間を持っていて，他のサブインタプリタからアクセスできないということ
+だけ知っておいてもらえば十分です．この機能は，同じApache サーバの下で実行
+される別個のプログラムが影響を及ぼし合わないようにする上でとても役立ちます．
+
+サーバの開始時や \module{mod_python} の初期化時には， \module{mod_python}
+は \dfn{メイン} (\dfn{main}) インタプリタと呼ばれるインタプリタを起動
+メインインタプリタにはサブインタプリタの辞書が入ります．初期化時にはこの
+辞書は空です．サーバはリクエストを受信するごとに，必要に応じてサブインタプリタを
+生成し，サブインタプリタへの参照を辞書に記憶します．辞書は文字列をキーにしており，
+このキーは \emph{インタプリタ名 (interpreter name)} といいます．
+インタプリタ名は任意の文字列にできます．メインインタプリタの名前は
+\samp{main_interpreter} です．その他のインタプリタを名付ける方法は
+\code{PythonInterp*} ディレクティブで制御できます．デフォルトの動作では
+Apache の仮想サーバ名 (\code{ServerName} ディレクティブ) を使って
+名前をつけます。すなわち、同じ仮想サーバのスクリプトは同じサブインタプリタで
+実行され、異なる仮想サーバで実行されるスクリプトは互いに完全に別個の名前空間
+を持つのです。
+\citetitle[dir-other-ipd.html]{\code{PythonInterpPerDirectory}} および
+\citetitle[dir-other-ipdv.html]{\code{PythonInterpPerDirective}}
+ディレクティブを使うと、名前づけ規則を変更して、それぞれアクセス中のディレクトリの
+絶対パスを使ったり、\code{Python*Handler} のあるディレクトリの名前を
+使ったりさせられます。
+\citetitle[dir-other-pi.html]{\code{PythonInterpreter}} を使うと、
+名前づけ規則による設定を特定の文字列で上書きできます。
+
+一度作成すると、サブインタプリタはそれ以降のリクエストで再利用されます。
+サブインタプリタは Apache のプロセスが死ぬまで破壊されることも終了することも
+ありません。
+
+現在どんな名前のインタプリタ下で実行中かは、\member{req.interpreter}
+を見れば分かります。
+
+\begin{seealso}
+  \seetitle[http://www.python.org/doc/current/api/api.html]
+           {Python C 言語 API}{Python C 言語 API}
+\end{seealso}
+
+\section{リクエストハンドラの概要\label{pyapi-handler}}
+\indexii{request}{handler}
+
+\dfn{ハンドラ} (\dfn{handler}) とは、リクエストにおける特定のフェイズ
+を処理する関数です。 Apache は一つのリクエストをリクエストの読み込み、
+ヘッダの処理、コンテンツの提供、などといった複数のフェイズに分けて処理します。
+いずれのフェイズに対しても、Apache のコア機能や、\module{mod_python } のように
+ユーザが Python で書いた関数に処理を渡すモジュール群の中からハンドラを
+呼び出します。 Python で書いたハンドラは C で書いたハンドラと全く同じで、
+以下のような規則に従います:
+
+\index{req} \indexii{request}{object} 
+ハンドラ関数は常にリクエストオブジェクトへの参照を受け取ります。
+(このマニュアル全体を通じて、リクエストオブジェクトはしばしば \code{req} という
+変数で参照されています。)
+
+各ハンドラは以下のような値を返します:
+
+\begin{itemize}
+
+\item
+  \constant{apache.OK}。現在のハンドラがあるリクエストのフェイズを処理し、
+エラーを起こさなかったことを示します。
+
+\item
+  \constant{apache.DECLINED}。現在のハンドラがあるリクエストのフェイズを
+最後まで処理せず、Apache が後続のモジュール内から適切なハンドラを探さねばならない
+ことを示します。
+  
+\item
+  \constant{apache.\emph{HTTP_ERROR}}。 HTTP エラーが生じたことを
+示します。
+  \var{HTTP_ERROR} は以下のいずれかになります:
+
+  \begin{verbatim}
+    HTTP_CONTINUE                     = 100
+    HTTP_SWITCHING_PROTOCOLS          = 101
+    HTTP_PROCESSING                   = 102
+    HTTP_OK                           = 200
+    HTTP_CREATED                      = 201
+    HTTP_ACCEPTED                     = 202
+    HTTP_NON_AUTHORITATIVE            = 203
+    HTTP_NO_CONTENT                   = 204
+    HTTP_RESET_CONTENT                = 205
+    HTTP_PARTIAL_CONTENT              = 206
+    HTTP_MULTI_STATUS                 = 207
+    HTTP_MULTIPLE_CHOICES             = 300
+    HTTP_MOVED_PERMANENTLY            = 301
+    HTTP_MOVED_TEMPORARILY            = 302
+    HTTP_SEE_OTHER                    = 303
+    HTTP_NOT_MODIFIED                 = 304
+    HTTP_USE_PROXY                    = 305
+    HTTP_TEMPORARY_REDIRECT           = 307
+    HTTP_BAD_REQUEST                  = 400
+    HTTP_UNAUTHORIZED                 = 401
+    HTTP_PAYMENT_REQUIRED             = 402
+    HTTP_FORBIDDEN                    = 403
+    HTTP_NOT_FOUND                    = 404
+    HTTP_METHOD_NOT_ALLOWED           = 405
+    HTTP_NOT_ACCEPTABLE               = 406
+    HTTP_PROXY_AUTHENTICATION_REQUIRED= 407
+    HTTP_REQUEST_TIME_OUT             = 408
+    HTTP_CONFLICT                     = 409
+    HTTP_GONE                         = 410
+    HTTP_LENGTH_REQUIRED              = 411
+    HTTP_PRECONDITION_FAILED          = 412
+    HTTP_REQUEST_ENTITY_TOO_LARGE     = 413
+    HTTP_REQUEST_URI_TOO_LARGE        = 414
+    HTTP_UNSUPPORTED_MEDIA_TYPE       = 415
+    HTTP_RANGE_NOT_SATISFIABLE        = 416
+    HTTP_EXPECTATION_FAILED           = 417
+    HTTP_UNPROCESSABLE_ENTITY         = 422
+    HTTP_LOCKED                       = 423
+    HTTP_FAILED_DEPENDENCY            = 424
+    HTTP_INTERNAL_SERVER_ERROR        = 500
+    HTTP_NOT_IMPLEMENTED              = 501
+    HTTP_BAD_GATEWAY                  = 502
+    HTTP_SERVICE_UNAVAILABLE          = 503
+    HTTP_GATEWAY_TIME_OUT             = 504
+    HTTP_VERSION_NOT_SUPPORTED        = 505
+    HTTP_VARIANT_ALSO_VARIES          = 506
+    HTTP_INSUFFICIENT_STORAGE         = 507
+    HTTP_NOT_EXTENDED                 = 510
+  \end{verbatim}                      
+
+\end{itemize}
+
+ハンドラはHTTP エラーコードを \emph{返す} 代わりに、
+HTTP エラーコードを例外の値にして\constant{apache.SERVER_RETURN} 例外を
+送出してエラーをシグナルできます。例えば、
+
+\begin{verbatim}
+raise apache.SERVER_RETURN, apache.HTTP_FORBIDDEN
+\end{verbatim}
+のようにします。
+
+ハンドラは \method{req.write()} メソッドを使って
+クライアントにコンテンツを送信できます。
+
+POST リクエスト時のようにいクライアントデータがある場合、データは
+\method{req.read()} 関数を使って読み出せます。
+
+\begin{notice}
+Apache の\code{Python*Handler} ディレクティブを有効にしているディレクトリは
+\code{sys.path} のパス中に前置されます。サーバ設定ファイルの\code{<Directory>} 
+外でディレクティブを設定した場合、ディレクトリの位置は分からず、\code{sys.path}
+にも加えられません。
+\end{notice}
+
+最小限のハンドラの例は以下のようになります:
+
+\begin{verbatim}
+from mod_python import apache
+
+def requesthandler(req):
+    req.content_type = "text/plain"
+    req.write("Hello World!")
+    return apache.OK
+\end{verbatim}
+
+\section{フィルタハンドラの概要\label{pyapi-filter}}
+\indexii{filter}{handler}
+
+\dfn{フィルタハンドラ} (\dfn{filter handler}) とは、サーバへの入力やサーバからの
+出力をフィルタする関数です。 フィルタには二つの種類、\dfn{入力} (\dfn{input})
+および\dfn{出力} (\dfn{output})があり、それぞれサーバへの入力とサーバからの出力
+に適用されます。
+
+現時点では、\module{mod_python} はリクエストレベルのフィルタしかサポート
+していません。つまり、フィルタできるのは HTTP リクエストか、レスポンスの本体
+だけです。 Apache は接続レベルのフィルタをサポートしており、\module{mod_python}
+ではこの機能を将来サポートする予定です。
+
+フィルタハンドラは \emph{フィルタ (filter)} オブジェクトを引数にとります。
+リクエストオブジェクトは \code{filter.req} から利用できますが、全ての読み書きは
+フィルタオブジェクトの\method{read} および \method{write} メソッドで
+行わねばなりません。
+
+フィルタは\method{read} 操作が \code{None} を返した (ストリームの
+終端、EOF に到達したことを示します) 時点で閉じねばなりません。
+
+フィルタの戻り値は無視されます。フィルタはハンドラと違って処理を拒否できませんが、
+\method{filter.pass_on()} メソッドを使えば同様の効果を引き起こせます。
+
+フィルタはまず\code{PythonIInputFilter} または\code{PythonOutputFilter}
+ディレクティブを使って登録し、その後で、Apache の \code{Add/SetInputFilter} 
+または \code{Add/SetOutputFilter} ディレクティブで登録せねばなりません。
+
+出力フィルタの指定方法を以下に示します。この例では、 \filenq{.py} ファイルは
+全て CAPITALIZE フィルタで処理するようサーバに指示します:
+
+\begin{verbatim}
+  PythonOutputFilter capitalize CAPITALIZE
+  AddOutputFilter CAPITALIZE .py
+\end{verbatim}
+
+そして、\file{capitalize.py} のコードは以下のようになります:
+
+\begin{verbatim}
+from mod_python import apache
+  
+def outputfilter(filter):
+
+    s = filter.read()
+    while s:
+        filter.write(s.upper())
+        s = filter.read()
+
+    if s is None:
+        filter.close()
+
+\end{verbatim}
+
+フィルタを書くときには、フィルタの上流にあるものが IO 操作を行うたびに
+フィルタが呼び出されること、そしてフィルタは流し込まれるデータの量を
+コントロールできず、リクエスト処理のどこでフィルタが呼び出されるかを
+知る術もないということを心に留めておきましょう。
+
+例えば、単一のリクエストの中でフィルタが呼び出される回数は一回だけかも
+しれないし、五回かもしれません。また、リクエストの完了や、あるリクエスト
+に対してどれが最初あるいは最後のフィルタ呼び出しであるかを前もって
+知る術もありません。ただ EOS (\method{read} 操作が \code{None} を
+返す) だけが、リクエストの末端を強く示唆しているだけにすぎません。
+
+また、サブリクエストを行うと、フィルタが再帰的に呼び出されっぱなしになりうる
+ことにも注意しておきましょう。データを複数回フィルタさせないためには、
+\code{req.main} の値を調べ、常にサブリクエストの処理ではないことを確かめ
+るようにしてください。
+
+フィルタの詳細については
+\citetitle[http://httpd.apache.org/docs-2.0/developer/filters.html]{http://httpd.apache.org/docs-2.0/developer/filters.html}
+を参照してください。
+
+\section{接続ハンドラの概要\label{pyapi-conn}}
+\indexii{connection}{handler}
+
+\dfn{接続ハンドラ} (\dfn{connection handler}) は接続に関わる処理を行います。
+接続ハンドラはクライアントからサーバへの TCP 接続が作成された直後に開始します。
+
+HTTP ハンドラと違い、接続ハンドラは\emph{接続 (connection)} オブジェクトを
+引数にとります。
+
+接続ハンドラはプロトコルの実装に使います。例えば以下は簡単な echo サーバの
+例です:
+
+Apache の設定:
+\begin{verbatim}
+  PythonConnectionHandler echo
+\end{verbatim}
+
+\filenq{echo.py} ファイルの内容:
+\begin{verbatim}
+from mod_python import apache
+
+def connectionhandler(conn):
+
+    while 1:
+        conn.write(conn.readline())
+
+    return apache.OK
+\end{verbatim}
+
+\section{\module{apache} -- Apache 内部へのアクセス}
+\declaremodule[apache]{extension}{apache}
+\modulesynopsis{Apache 内部へのアクセス}
+\moduleauthor{Gregory Trubetskoy}{grisha@apache.org}
+
+Apache 内部への Python インタフェースは、\module{mod_python} パッケージ内の
+\module{apache} という分かりやすい名前のモジュールに入っています。
+このモジュールでは Apache の内部構造体に対応づけされた重要なオブジェクトや
+便利な関数群を提供しています。これらはすべて後に説明します。
+(リクエストオブジェクトでもApache 内部へのインタフェースを提供していますが、
+これについてはマニュアル中の別の節で触れます。)
+
+\indexii{_apache}{module} The \module{apache} モジュールを import
+できるのは\module{mod_python} 下で動作するスクリプトだけです。
+これは、\module{apache} が\module{mod_python} の提供している
+\module{_apache} に依存しているからです。
+
+モジュールの import は以下のように行うのがベストです:
+
+\begin{verbatim}
+from mod_python import apache
+\end{verbatim}
+
+\module{mod_python.apache} モジュールでは、以下の関数とオブジェクトを
+定義しています。Apache の内部に関する詳しい説明は、
+\citetitle[http://httpd.apache.org/dev/]{Apache Developer page}
+を参照してください。
+
+\subsection{関数\label{pyapi-apmeth}}
+
+\begin{funcdesc}{log_error}{message\optional{, level, server}}
+Apache の\code{ap_log_error()} 関数へのインタフェースです。
+\var{message} はエラーメッセージの入った文字列です。
+\var{level} は以下のフラグ定数のいずれかです:
+
+  \begin{verbatim}
+    APLOG_EMERG
+    APLOG_ALERT
+    APLOG_CRIT
+    APLOG_ERR
+    APLOG_WARNING
+    APLOG_NOTICE
+    APLOG_INFO
+    APLOG_DEBUG
+    APLOG_NOERRNO
+  \end{verbatim}            
+  
+\var{server} は \member{req.server} オブジェクトへの参照です。
+\var{server} を指定しない場合、エラーがデフォルトのエラーログまたは
+適切な仮想サーバのエラーログに記録されます。\var{server} を指定しない
+場合、\samp{LogLevel} ディレクティブの設定は適用されず、\samp{LogLevel}
+の設定は \program{httpd} をコンパイルした時のデフォルト値になります。
+通常、デフォルト値は \code{warn} です。
+
+リクエストオブジェクトを参照できるような状況では、\method{req.log_error}
+を使うよう検討してください。\method{req.log_error} はリクエスト元の IP
+アドレスのようなリクエスト固有の情報をログエントリに追加します。
+\end{funcdesc}
+
+\begin{funcdesc}{import_module}{module_name\optional{, autoreload=1, log=0, path=None}}
+この関数を使うと、import しておいたモジュールが変更された時に自動的に再ロード
+を行うという、\module{mod_python} の内部メカニズムの恩恵を受けられます。
+
+\var{module_name} はモジュール名の入った文字列です。 
+(\code{mypackage.mymodule}のように、ドットを含めてもかまいません。)
+\var{autoreload} には import 後にモジュールが更新された場合に
+再ロードを行うべきか否かを指定します。\var{log} を真にすると、モジュールを
+再ロードした時にメッセージをログ書き出します。\var{path} を指定すると、
+特定のパスからモジュールを import するよう制限できます。
+
+一例を示します:
+
+  \begin{verbatim}
+    from mod_python import apache
+    mymodule = apache.import_module('mymodule', log=1)
+  \end{verbatim}
+\end{funcdesc}
+
+\begin{funcdesc}{allow_methods}{\optional{*args}}
+\member{req.allowed} の値を設定するための便宜関数です。
+\member{req.allowed} はビットマスクで、\samp{Allow:} ヘッダの
+作成に使われます。この値は\code{HTTP_NOT_IMPLEMENTED} エラーを
+返すよりも前に設定しておかねばなりません。
+
+引数には以下の値から一つまたは複数個を指定します:
+  \begin{verbatim}
+    M_GET
+    M_PUT
+    M_POST
+    M_DELETE
+    M_CONNECT
+    M_OPTIONS
+    M_TRACE
+    M_PATCH
+    M_PROPFIND
+    M_PROPPATCH
+    M_MKCOL
+    M_COPY
+    M_MOVE
+    M_LOCK
+    M_UNLOCK
+    M_VERSION_CONTROL
+    M_CHECKOUT
+    M_UNCHECKOUT
+    M_CHECKIN
+    M_UPDATE
+    M_LABEL
+    M_REPORT
+    M_MKWORKSPACE
+    M_MKACTIVITY
+    M_BASELINE_CONTROL
+    M_MERGE
+    M_INVALID
+  \end{verbatim}
+
+\end{funcdesc}
+
+\begin{funcdesc}{config_tree}{}
+サーバレベルの設定ツリーを返します。このツリーには\filenq{.htaccess} 由来の
+ディレクティブは入っていません。また、ツリーは\emph{コピー} にすぎず、
+変更しても実際の設定になんら影響を及ぼしません。
+\end{funcdesc}
+
+\begin{funcdesc}{server_root}{}
+ServerRoot の値を返します。
+\end{funcdesc}
+
+\begin{funcdesc}{make_table}{} 
+この関数は撤廃され、\class{table} (下記参照) の別名になっています。
+\end{funcdesc}
+
+\begin{funcdesc}{mpm_query}{code}
+  Allows querying of the MPM for various parameters such as numbers of
+  processes and threads. 
+この関数を使うと、プロセス数やスレッド数といった様々な値を MPM に問い合わせ
+られます。戻り値は以下の三つの定数のいずれかになります:
+  \begin{verbatim}
+AP_MPMQ_NOT_SUPPORTED      = 0  # MPM がスレッド生成や fork を
+                                # サポートしていないことを示します。
+AP_MPMQ_STATIC             = 1  # MPM がスレッドやデーモン (daemon) の数を
+                                # 静的に設定していることを示します。
+AP_MPMQ_DYNAMIC            = 2  # MPM がスレッドやデーモンの数を
+                                # 動的に設定していることを示します。
+  \end{verbatim}
+
+\var{code} 引数は以下の値のいずれかでなければなりません:
+  \begin{verbatim}
+AP_MPMQ_MAX_DAEMON_USED    = 1  # これまでに使われたデーモン数の最大値
+AP_MPMQ_IS_THREADED        = 2  # MPM がスレッドを生成できるか否か
+AP_MPMQ_IS_FORKED          = 3  # MPM が fork を実行できるか否か
+AP_MPMQ_HARD_LIMIT_DAEMONS = 4  # 最大デーモン数のコンパイル時の設定
+AP_MPMQ_HARD_LIMIT_THREADS = 5  # 最大スレッド数のコンパイル時の設定
+AP_MPMQ_MAX_THREADS        = 6  # 設定上のスレッド/子プロセス数
+AP_MPMQ_MIN_SPARE_DAEMONS  = 7  # スペアとして残すデーモン数の最小値
+AP_MPMQ_MIN_SPARE_THREADS  = 8  # スペアとして残すスレッド数の最小値
+AP_MPMQ_MAX_SPARE_DAEMONS  = 9  # スペアとして残すデーモン数の最大値
+AP_MPMQ_MAX_SPARE_THREADS  = 10 # スペアとして残すスレッド数の最大値
+AP_MPMQ_MAX_REQUESTS_DAEMON= 11 # デーモンあたりの最大リクエスト数
+AP_MPMQ_MAX_DAEMONS        = 12 # 設定上でのデーモンの最大数
+  \end{verbatim}
+
+以下に例を示します:
+  \begin{verbatim}
+if apache.mpm_query(apache.AP_MPMQ_IS_THREADED):
+    # do something
+else:
+    # do something else
+  \end{verbatim}
+\end{funcdesc}
+
+\subsection{テーブルオブジェクト (mp_table)
+  \obindex{table}\label{pyapi-mptable}}
+
+\index{table}
+\begin{classdesc}{table}{\optional{mapping-or-sequence}}
+\code{mp_table} 型の新たな空のオブジェクトを返します。
+テーブルオブジェクトの説明は\ref{pyapi-mptable} 節を参照してください。
+\var{mapping-or-sequence} はテーブルの初期値設定に使われます。
+
+テーブルオブジェクトはApache APR テーブルに対するラッパです。このテーブル
+オブジェクトは、(Python 2.2 からサポートされた\code{in} 演算子なども含めて)
+ほぼ辞書と同じようにふるまいます。ただし、以下の点で異なります:
+
+  \begin{itemize}
+  \item
+キーと値はいずれも文字列でなければなりません。
+  \item
+キーの参照時に大文字と小文字を区別しません。
+  \item
+キーの重複があってもかまいません (\method{add()} メソッドを参照してください)
+一つのキーに対して複数の値が存在する場合、添字参照 (subscript operation) を
+行うとリストを返します。
+  \end{itemize}
+
+このテーブルには、Apache の使う多くの情報、例えば\member{req.headers_in} 
+や \member{req.headers_out} などが入っています。
+
+\module{mod_python} がリクエストオブジェクトの中で提供しているテーブル
+は、全て Apache の構造体に対する実マッピングなので、 Python 側でテーブルを
+変更すると、根底にある Apache のテーブルも変更されます。
+
+通常の辞書に似たふるまいの他に、テーブルオブジェクトには以下のメソッドがあります:
+
+  \begin{methoddesc}[table]{add}{key, val}
+重複するキーを作成できるようにします。\code{Set-Cookie:} のような、同じキーを
+持つ複数のヘッダが必要な場合に便利です。
+  \end{methoddesc}
+
+  \versionadded{3.0}
+\end{classdesc}
+
+\subsection{リクエストオブジェクト\index{request}\label{pyapi-mprequest}}
+
+リクエスト (request) オブジェクトは、Apache の \code{request_rec} 構造体
+に対応する Python のオブジェクトです。ハンドラが起動される時には、常に
+リクエストオブジェクトが単一の引数として渡されます。
+
+リクエストオブジェクトには動的に属性値を代入でき、ハンドラ間のやりとりに
+利用できます。
+
+\subsubsection{メソッド\label{pyapi-mprequest-meth}}
+
+\begin{methoddesc}[request]{add_common_vars}{}
+Apache の \cfunction{ap_add_common_vars()} 関数を呼び出します。
+このメソッドを呼び出すと、\member{req.subprocess_env} には CGI に
+関する多くの情報が入ります。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{add_handler}{htype, handler\optional{, dir}}
+
+この関数を使うと動的にハンドラを追加できます。\var{htype} は、たとえば
+\samp{PythonHandler} のように、任意の (ただしフィルタハンドラや接続ハンドラは
+除きます) Apache リクエストハンドラのディレクティブ名が入った文字列です。
+\var{handler} はモジュールやハンドラ関数の名前が入った文字列です。
+\var{dir} はオプションで、\constant{sys.path} に追加するディレクトリ名の
+入った文字列です。ディレクトリ名を指定しない場合、もしすでに同じタイプの
+ハンドラが登録されていれば、その設定を継承します。\code{PythonPath} 
+ディレクティブが有効であるばあい、\code{sys.path} は\code{PythonPath}
+の設定だけに従います (ディレクトリの追加は行わず、\var{dir} は無視されます)。
+  
+この関数を使って追加したハンドラは、リクエストの終了までしか存続しません。
+あるハンドラの内部で同じタイプのハンドラをさらに追加してもかまいませんが、
+その場合は無限ループを形成しないように気を付けねばなりません。
+
+動的なハンドラ登録はコードの次の振舞いを動的に変更できる便利なテクニックです。
+典型的な例は、認証のレベルに応じて異なる\code{PythonHandler} を切替えるような
+\code{PythonAuthenHandler} でしょう:
+
+  \begin{verbatim}
+if manager:
+    req.add_handler("PythonHandler", "menu::admin")
+else:
+    req.add_handler("PythonHandler", "menu::basic")
+  \end{verbatim}                              
+
+  \begin{notice}
+この関数は、正しいハンドラ名を使っているかどうかをチェックしません。
+不正なハンドラ名を渡した場合には無視されます。
+  \end{notice}
+\end{methoddesc}
+
+\begin{methoddesc}[request]{allow_methods}{methods\optional{, reset}}
+\var{methods} を \member{req.allowed_methods} リストに追加します。
+このリストは\constant{HTTP_METHOD_NOT_ALLOWED} や
+\constant{HTTP_NOT_IMPLEMENTED} がクライアントに返される時に
+\code{Allowed:} ヘッダに渡されます。Apache は何らメソッド制限に対する操作を
+行わず。リストはただ単にヘッダの構築に使われるだけです。実際にメソッドを制限する
+ロジックはハンドラコードで書かねばなりません。
+
+  \var{methods} は文字列からなる配列です。\var{reset} が \code{1} の場合、
+最初にメソッドのリストを消去します。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{document_root}{}
+DocumentRoot の設定を返します。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{get_basic_auth_pw}{}
+Basic 認証で使われるパスワードの入った文字列を返します。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{get_config}{}
+現在有効になっている\module{mod_python} の設定から \code{Python*Handler} 
+および \code{PythonOption} の設定を除いた内容の入ったテーブルオブジェクトへの
+参照を返します (\code{PythonOption} の設定は\method{req.get_options()}
+で取得できます)。テーブルのキーはディレクティブ名になり、テーブルの値は
+ディレクティブの値 (あれば) になります。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{get_remote_host}{\optional{type, str_is_ip}}
+遠隔のクライアントの DNS 名および IP アドレスを決定するためのメソッドです。
+この関数は最初の呼び出し時にDNSへの参照を伴うことがありますが、それ以降の
+呼び出しでは結果をキャッシュして使います。
+
+\var{type} 引数は以下のような値に指定できます:
+
+  \begin{itemize}
+
+  \item
+    \code{apache.REMOTE_HOST} DNS を参照します。Apache の
+\code{HostNameLookups} が\code{off} の場合や、ホスト名を特定できなかった
+場合には \code{None} を返します。
+
+  \item                  
+    \code{apache.REMOTE_NAME} \emph{(デフォルト)} DNS 名があれば返し、
+なければ IP アドレスを (10進ドット表記の文字列で) 返します。
+
+  \item
+    \code{apache.REMOTE_NOLOOKUP} DNS 名の参照を行わず、IP アドレスを
+返します。注意: 以前の呼び出しで DNS を参照した場合、その結果としてキャッシュ
+されたホスト名を返します。
+
+  \item
+    \code{apache.REMOTE_DOUBLE_REV} 二重逆引きを強制的に行います。
+失敗すると \code{None} を返します。
+
+  \end{itemize}
+
+\var{str_is_ip} を\code{None} にしたり省略したりすると、戻り値は
+DNS 名または IP アドレスのいずれかを表現した文字列になります。
+
+\var{str_is_ip} 引数を \code{None} 以外の値にすると、
+戻り値は\code{(address, str_is_ip)} からなるタプルになります。
+このとき、\code{address} が IP アドレスを示す文字列であれば、
+タプルの \var{str_is_ip} はゼロ以外の値になります。
+それ以外の場合には \code{None} を返します。
+
+\end{methoddesc}
+
+\begin{methoddesc}[request]{get_options}{}
+\code{PythonOption} ディレクティブで設定したオプションの入った
+テーブルオブジェクトへの参照を返します。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{internal_redirect}{new_uri}
+リクエストを \var{new_uri} に内部的にリダイレクトします。
+\var{new_uri} は文字列でなければなりません。
+
+\program{httpd}  サーバは、新たなリクエストオブジェクトと全てのリクエスト
+フェイズを生成して内部的なリダイレクションを実現します。内部リダイレクションの
+中では、\code{req.prev} にリダイレクト元のリクエストオブジェクトへの参照
+が入ります。
+
+\end{methoddesc}
+
+\begin{methoddesc}{log_error}{message\optional{, level}}
+Apache の \code{ap_log_rerror} 関数へのインタフェースです。
+\var{message} はエラーメッセージの入った文字列で、\var{level}
+は以下のフラグ定数のいずれかでなければなりません:
+
+  \begin{verbatim}
+    APLOG_EMERG
+    APLOG_ALERT
+    APLOG_CRIT
+    APLOG_ERR
+    APLOG_WARNING
+    APLOG_NOTICE
+    APLOG_INFO
+    APLOG_DEBUG
+    APLOG_NOERRNO
+  \end{verbatim}            
+
+リクエストオブジェクトへの参照がない状態でログを記録したければ、
+\function{apache.log_error} 関数を使ってください。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{requires}{}
+
+\code{require} ディレクティブの引数に指定した文字列からなる
+タプルを返します。
+
+例えば、Apache の設定が以下のようになっているとすると:
+  \begin{verbatim}
+AuthType Basic
+require user joe
+require valid-user
+  \end{verbatim}
+  \method{requires()} は\code{('user joe', 'valid-user')}
+を返します。
+
+\end{methoddesc}
+
+\begin{methoddesc}[request]{read}{\optional{len}}
+
+クライアントから最大\var{len} バイトのデータを直接読み出し、読み出した
+データを文字列にして返します。\var{len} 引数を省略するか、負の値に指定すると、
+クライアントから提供される全てのデータを読み出します。
+
+この関数はApacheの \code{Timeput} 設定ディレクティブの影響を受けます。
+クライアントからデータを読み出す際に\code{Timeout} に指定した時刻を
+超過すると、読み出し操作を中断して\exception{IOError} を送出します。
+
+この関数ではクライアントが \code{Content-length} ヘッダを提供するものと
+想定しています。\code{Content-length} ヘッダがなければ、
+\code{Content-length: 0} であるかのように扱います。
+
+\code{Content-length} が誤った値である場合、この関数はクライアントが提供
+できる以上のデータを読みだそうとして、その結果 \code{Timeout} に到達するまで
+処理をブロックさせる可能性があります。
+
+\end{methoddesc}
+
+\begin{methoddesc}[request]{readline}{\optional{len}}
+\function{read()} に似ていますが、行末までデータを読み込みます。
+  
+  \begin{notice}
+HTTP の仕様により、ほとんどのクライアントは行末を \samp{\e n} では
+なく\samp{\e r\e n} で終端します。
+  \end{notice}
+
+\end{methoddesc}
+
+\begin{methoddesc}[request]{readlines}{\optional{sizehint}}
+\method{readline} を使って \var{sizehint} バイトまでの全ての
+データを読み出し、その結果をリストで返します。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{register_cleanup}{callable\optional{, data}}
+
+後処理 (cleanup) 用の関数を登録します。 \var{callable} は任意の呼び出し可能
+オブジェクトにできます。オプションの引数 \var{data} は任意のオブジェクトに
+できます (デフォルトでは\code{None} です)。\var{callable} は、リクエストが
+終了した直後でかつApache が実際のリクエストレコードを破壊する直前に、\var{data}
+を引数にして呼び出されます。
+
+リクエストオブジェクトを \var{data} に渡しても問題はありませんが、
+後処理を実行している時にはリクエスト処理はほとんど完結しており、
+クライアントへの書き込みのような操作には全く意味がないということを
+心に留めておいてください。
+
+後処理中にエラーが生じた場合、そのことを必ずエラーログに記録せねばなりません。
+後処理におけるエラーはリクエストの処理に何ら影響を及ぼさないため、後処理
+におけるバグを追求しにくくなるからです。
+
+後処理の実行に入る前にサーバがシャットダウンを始めると、
+後処理が実行されない可能性があります。
+
+\end{methoddesc}
+
+\begin{methoddesc}[request]{sendfile}{path\optional{, offset, len}}
+ファイル \var{path} のオフセット\var{offset} 以降の\var{len} バイトを
+サーバの内部 API を使ってクライアントに送信します。
+\var{offset} のデフォルトは 0 で、 \var{len} のデフォルトは -1 (ファイル
+全体を送信する) です。
+
+この関数はクライアントにファイルを送信する最も効率的な方法です。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{write}{string\optional{, flush=1}}
+\var{string} をクライアントに直接書き出します。\var{flush} が 0 でない
+限り、書き出し後にバッファをフラッシュします。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{flush}{}
+出力バッファをフラッシュします。
+\end{methoddesc}
+
+\begin{methoddesc}[request]{set_content_length}{len}
+\member{req.clength} および\samp{Content-Length} ヘッダの値を
+\var{len} にsっ定します。ヘッダが送信されてしまった後 (\member{req.write()}
+などを呼び出してデータ本体の最初のバイトが書き出してしまった後) では、
+この関数を呼び出しても無意味なので注意してください。
+\end{methoddesc}
+
+\subsubsection{メンバ\label{pyapi-mprequest-mem}}
+
+\begin{memberdesc}[request]{connection}
+リクエストに関連づけられた接続オブジェクトです。
+詳しくは接続オブジェクトのの説明を参照してください。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{server}
+リクエストに関連づけられたサーバオブジェクトです。
+詳しくはサーバオブジェクトのの説明を参照してください。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{next}
+リクエストが内部リダイレクトの場合、リダイレクト先のリクエストオブジェクトを指します。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{prev}
+リクエストが内部リダイレクトの場合、リダイレクト元のリクエストオブジェクトを指します。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{main}
+リクエストがサブリクエストの場合、メインリクエストを指します。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{the_request}
+リクエストの最初の行の内容が入った文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{assbackwards}
+リクエストが HTTP/0.9 の ``simple'' リクエストである、すなわち、
+レスポンスにはヘッダがなく、ボディだけになることを示します。
+このメンバは古いブラウザ向けに互換性を保つためだけに存在していますが、
+\var{assbackwards} を 1 に設定すると、内部リダイレクトから返ってきた
+レスポンスの一部を取り出したいときにヘッダの送信を抑制できるので
+便利だと指摘する人もいます。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{proxyreq}
+プロキシリクエストです: 値は\constant{apache.PROXYREQ_*} の一つになります。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{header_only}
+リクエストが HEAD リクエストであることを示すブール値です。逆は GET です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{protocol}
+クライアントが指定してきたプロトコルか、\samp{HTTP/0.9} になります。
+CGI の \envvar{SERVER_PROTOCOL} と同じです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{proto_num}
+プロトコルのバージョンを表す整数値です; 1.1 は 1001 になります。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{hostname}
+完全 URI または \samp{Host:} ヘッダで指定されたホスト名を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{request_time}
+リクエストの開始時刻を表す長整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{status_line}
+\samp{200 OK}のようなステータスコード行です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{status}
+ステータスコードです。\constant{apache.HTTP_*} のいずれかの値になります。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{method}
+'GET', 'HEAD', 'POST' などの、リクエストメソッドを表す文字列です。
+CGI の\envvar{REQUEST_METHOD} と同じです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{method_number}
+リクエストメソッドの番号を表す整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{allowed}
+利用可能なメソッドを表す整数ビットフィールドです。 
+  \constant{HTTP_METHOD_NOT_ALLOWED} や\constant{HTTP_NOT_IMPLEMENTED} 
+で応答する際の\samp{Allowed:} ヘッダの構築に使われます。
+このフィールドは Apache が内部で使います。 \samp{Allowed:} を設定したければ、
+\ref{pyapi-mprequest-meth} 節で述べたように\method{req.allow_methods()}
+メソッドを使ってください。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{allowed_xmethods}
+利用可能な拡張メソッドからなるタプルです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{allowed_methods}
+利用可能なメソッドからなるタプルです。  \constant{METHOD_NOT_ALLOWED}
+と一緒に使われます。\ref{pyapi-mprequest-meth}節で述べたように、
+このメンバの内容は\method{req.allow_methods()} で変更します。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{sent_bodyct}
+ストリーム中におけるデータボディのバイト長を表す整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{bytes_sent}
+送信されたバイト数を表す長整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{mtime}
+リソースが更新された時刻を表す長整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{chunked}
+チャンク分割転送方式 (chunked transfer-coding) のデータを送信している
+ことを示すブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{range}
+\code{Range:} ヘッダの内容が入った文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{clength}
+「真の」コンテンツ長が入った長整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{remaining}
+まだ読み出していないバイト長を表す長整数です (読み出し操作のときにしか
+意味をなしません)。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{read_length}
+読み出されたバイト長を表す長整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{read_body}
+リクエストボディの読み出し方法を表す整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{read_chunked}
+チャンク分割転送方式で読み出していることを示すブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{expecting_100}
+クライアントが 100 (\constant{HTTP_CONTINUE}) レスポンスを待っている
+ことを示すブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{headers_in}
+クライアントから送信されたヘッダの入ったテーブルオブジェクトです。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{headers_out}
+クライアントに送信するヘッダを表す \code{table} オブジェクトです。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{err_headers_out}
+エラーレスポンスの際に \samp{headers_out} の代わりに送信される
+ヘッダです。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{subprocess_env}
+CGI でよく使われる環境情報の入った\code{table} オブジェクトです。
+このテーブルに必要な情報を入れるには、まず\member{req.add_common_vars()}
+を呼び出さねばならないかもしれません。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{notes}
+雑多で汎用のデータをリクエストが存続している間記憶しておくための\code{table} 
+オブジェクトです。データをハンドラ間で渡す必要がある場合には、\member{notes}
+を使うよりも単にリクエストオブジェクトに新たなメンバを追加した方がよいでしょう。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{phase}
+例えば\samp{PythonHandler} のような、現在処理中のフェイズを表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{interpreter}
+ハンドラを実行しているサブインタプリタの名前です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{content_type}
+コンテンツのタイプ (content type) を表す文字列です。\module{mod_python}は、
+Python プログラム中で\member{content_type} を手動で設定したかどうかを
+内部フラグ (\member{req._content_type_set}) を使って追跡します。
+publisher ハンドラは、\member{content_type} を明示的に設定されていない
+場合、出力の最初の数バイトを調べてコンテンツのタイプを推測しようと試みます。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{handler}
+現在処理中のハンドラの名前です。この値は\module{mod_python} ハンドラが設定
+した値ではなく、\module{mod_mime} が設定したハンドラ名になります。多くの場合、
+値は \samp{"mod_python"} になります。
+\emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{content_encoding}
+コンテンツのコード方式 (content encoding) を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{vlist_validator}
+（コンテントネゴシエーション中の場合に使う) 異体リスト検証子
+(variant list validator) を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{user}
+認証チェックが行われた場合にユーザ名の入るメンバです。
+CGI における\envvar{REMOTE_USER} と同じです。
+  \emph{(読み出し専用)}
+  \begin{notice}
+この値を読み出す場合、前もって \method{req.get_basic_auth_pw()} を
+呼び出しておかねばなりません。
+  \end{notice}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{ap_auth_type}
+認証の形式です。CGI における\envvar{AUTH_TYPE} と同じです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{no_cache}
+レスポンスをキャッシュできないことを示すブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{no_local_copy}
+レスポンスのローカルコピーが存在しないことを示すブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{unparsed_uri}
+解析処理前の URI です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{uri}
+URI のパス部分です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{filename}
+要求されているファイル名です。
+\end{memberdesc}
+
+\begin{memberdesc}[request]{canonical_filename}
+真のファイル名を表す文字列です (\member{req.filename} と一致しない場合、
+\member{req.filename} は正規化されます)
+\emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{path_info}
+ファイル名より後で、かつクエリ引数より前の位置に何かある場合、その内容を
+表す文字列になります。CGI における\envvar{PATH_INFO} です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{args}
+CGI における\envvar{QUERY_ARGS}を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{finfo}
+URI の指し示すファイルについて説明している、POSIX の stat に似たファイル
+情報構造体を表すタプルです。
+\code{(mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime, fname,
+    name)} からなります。\code{apache} モジュールでは、例えば:
+
+  \begin{verbatim}
+fname = req.finfo[apache.FINFO_FNAME]
+  \end{verbatim}
+のように、構造体の各要素にアクセスするための定数\constant{FINFO_*} を定義しています。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{parsed_uri}
+URI を各要素に分解したタプルです。
+  \code{(scheme, hostinfo, user, password, hostname, port, path, query, fragment)} からなります。\code{apache} モジュールでは、例えば:
+  \begin{verbatim}
+fname = req.parsed_uri[apache.URI_PATH]
+  \end{verbatim}
+のように、構造体の各要素にアクセスするための定数\constant{URI_*} を定義しています。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{used_path_info}
+現在のリクエストに対して\samp{path_info} 受け入れるか拒否するかを
+決めるフラグです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[request]{eos_sent}
+EOS bucket (ストリームの終了を表すデータ) を送信済みであることを表す
+ブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\subsection{接続オブジェクト (mp_conn)\obindex{connection}\label{pyapi-mpconn}}
+
+接続 (connection) オブジェクトは、Apache の\cdata{conn_rec} 構造体
+に対応する Python のオブジェクトです。
+
+\subsubsection{メソッド\label{pyapi-mpconn-meth}}
+
+\begin{methoddesc}[connection]{read}{\optional{length}}
+最大で \var{length} バイトをクライアントから読み出します。この関数を呼び出すと、
+少なくとも 1 バイト読み出すまで無期限でブロックします。\var{length}
+を -1 にすると、クライアントがソケットを閉じられるまでデータを読み続けよう
+とします (http サーバのコードで \code{EXHAUSTIVE} モードとして知られる
+動作です)。
+
+このメソッドを使うのは \emph{接続ハンドラ (Connection Handler)} の
+中だけにしてください。
+
+  \begin{notice}
+このメソッドの挙動はバージョン 3.0.3 以降で変更されました。 3.0.3 とそれ以前の
+バージョンでは\var{length} バイト読み出すまでブロックしていました。
+  \end{notice}
+
+\end{methoddesc}
+
+\begin{methoddesc}[connection]{readline}{\optional{length}}
+接続オブジェクトから一行のデータか、あるいは \var{length} バイトまでの
+データを読み出します。
+
+このメソッドを使うのは \emph{接続ハンドラ} の中だけにしてください。
+
+\end{methoddesc}
+
+\begin{methoddesc}[connection]{write}{string}
+
+\var{string} をクライアントに送信します。
+
+このメソッドを使うのは \emph{接続ハンドラ} の中だけにしてください。
+
+\end{methoddesc}
+
+\subsubsection{メンバ\label{pyapi-mpconn-mem}}
+
+\begin{memberdesc}[connection]{base_server}
+接続を受け入れた物理ホストの\code{server} オブジェクトです。
+%  A \code{server} object for the physical vhost that this connection came in
+%  through.
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{local_addr}
+サーバの情報を表す\samp{(address, port)} からなるタプルです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{remote_addr}
+\samp
+クライアントの情報を表す\samp{(address, port)} からなるタプルです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{remote_ip}
+クライアントの IP アドレスを表す文字列です。CGI の\envvar{REMOTE_ADDR}
+と同じです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{remote_host}
+リモートのクライアントの DNS 名を表す文字列です。DNS を使ったチェックを
+まだ行っていない場合、名前が見つからなければこの値は \code{""} (空文字列)
+になります。CGI の\envvar{REMOTE_HOST}と同じです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{remote_logname}
+RFC1413 (ident) を使って解決したリモート名です。CGIの\envvar{REMOTE_IDENT}
+と同じです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{aborted}
+接続が中断されたことを示すブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{keepalive}
+整数型のフラグで、 接続を次のリクエストまで維持する場合には 1、「不確定 (undecided)
+の場合には 0、「致命的なエラー (fatal error)」の場合には -1 になります。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{double_reverse}
+整数型のフラグで、DNS の二重逆引きをすでに行っている場合には 1, まだならば
+0、二重逆引きを行って失敗した場合には -1 になります。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{keepalives}
+接続の使われた回数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{local_ip}
+サーバの IP を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{local_host}
+サーバのDND名です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{id}
+一意な接続 id を表す長整数型の値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[connection]{notes}
+雑多な汎用の情報を入れる\code{table} オブジェクトです。接続が生きている
+間維持されます。
+\end{memberdesc}
+
+\subsection{フィルタオブジェクト (mp_filter)\obindex{filter}\label{pyapi-mpfilt}}
+
+フィルタオブジェクト (filter object) は\module{mod_python} で入力フィルタ
+や出力フィルタとして渡すオブジェクトです。
+このオブジェクトを使ってフィルタの情報を得たり、フィルタスタック上の
+隣接するスタックと情報をやり取りしたりします。
+
+\subsubsection{メソッド\label{pyapi-mpfilt-meth}}
+
+\begin{methoddesc}[filter]{pass_on}{}
+全てのデータに一切の処理を施さずフィルタを通過させます。
+\end{methoddesc}
+
+\begin{methoddesc}[filter]{read}{\optional{length}}
+隣のフィルタから最大で\var{len} バイトを読み出し、読み出したデータを
+文字列で返します。すでにストリームの終端 (EOS) に到達していた場合には
+\constant{None} を返します。
+EOS に到達した場合、フィルタは閉じられ\emph{なければなりません}。
+
+\var{len} 引数を負の値にしたり省略したりした場合、読み出せる全ての
+データを読み出します。
+\end{methoddesc}
+
+\begin{methoddesc}[filter]{readline}{\optional{length}}
+隣のフィルタから一行のデータか、あるいは \var{length} バイトまでの
+データを読み出します。
+\end{methoddesc}
+
+\begin{methoddesc}[filter]{write}{string}
+\var{string} を隣のフィルタに送信します。
+\end{methoddesc}
+
+\begin{methoddesc}[filter]{flush}{}
+FLUSH bucket (ストリームのフラッシュを指示するデータ)
+を送信して出力バッファをフラッシュします。
+\end{methoddesc}
+
+\begin{methoddesc}[filter]{close}{}
+フィルタを閉じて EOS bucket を送信します。フィルタを閉じた後、フィルタに対する
+IO 操作を行うと例外を送出します。
+\end{methoddesc}
+
+\begin{methoddesc}[filter]{disable}{}
+このハンドラを無視して、データを素通しするよう\module{mod_python}に指示します。
+このメソッドは\module{mod_python} が内部的に使用していて、フィルタ内で例外が
+生じた際にトレースバック出力が無限ループを引き起こさないようにしています。
+\end{methoddesc}
+
+\subsubsection{メンバ\label{pyapi-mpfilt-mem}}
+
+\begin{memberdesc}[filter]{closed}
+フィルタが閉じられたことを示すブール値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[filter]{name}
+フィルタの登録名を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[filter]{req}
+リクエストオブジェクトへの参照です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[filter]{is_input}
+ブール値で、フィルタが入力フィルタである場合に真になります。
+  Boolean. True if this is an input filter.
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[filter]{handler}
+設定ファイル中で指定した、このフィルタのPython ハンドラの名前を表す文字列
+です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\subsection{サーバオブジェクト(mp_server)\obindex{server}\label{pyapi-mpserver}}
+
+サーバオブジェクト (server object) は、Apacheの\cdata{server_rec} 構造体
+に対応する Python のオブジェクトです。サーバ構造体は、リクエストを受け付ける
+サーバ (場合によっては仮想サーバ) を表現します。
+
+\subsubsection{メソッド\label{pyapi-mpsrv-meth}}
+
+\begin{methoddesc}[server]{get_config}{}
+\code{req.get_config()} に似ていますが、Apache の設定ベクタ
+\code{server->module_config} の指す設定情報を返します。
+\end{methoddesc}
+
+\begin{methoddesc}[server]{register_cleanup}{request, callable\optional{, data}}
+後処理 (cleanup) 用の関数を登録します。 \function{req.register_cleanup()}
+に非常に良く似ていますが、後処理は子プロセスの終了時に実行されます。
+この関数には必須の引数が一つあり、リクエストオブジェクトを渡します。
+\end{methoddesc}
+
+\subsubsection{メンバ\label{pyapi-mpsrv-mem}}
+
+\begin{memberdesc}[server]{defn_name}
+サーバ定義の書かれている設定ファイルの名前を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{defn_line_number}
+設定ファイル中でサーバの設定が書かれている部分の行番号を表す整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{server_admin}
+\code{ServerAdmin} ディレクティブの値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{server_hostname}
+\code{ServerName} ディレクティブの値です。CGI の
+\envvar{SERVER_NAME} と同じです。\emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{port}
+TCP/IP ポート番号です。CGI の\envvar{SERVER_PORT}と同じです。
+  \emph{このメンバは Apache 2.0 では 0 のようです。代わりに
+req.connection.local_addr を参照してください}
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{error_fname}
+サーバにエラーログファイルがある場合、その名前を表す文字列です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{loglevel}
+ログレベルを表す整数です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{is_virtual}
+ブール値で、バーチャルサーバのときに真になります。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{timeout}
+整数値で、\code{Timeout} ディレクティブの値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{keep_alive_timeout}
+整数値で、Keepalive のタイムアウトを表す値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{keep_alive_max}
+一つの Keepalive 接続が受け入れるリクエスト数の最大値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{keep_alive}
+永続的な接続を使っているかどうかを表す値です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{path}
+文字列で、\code{ServerPath} に指定したパスです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{pathlen}
+文字列で、パスの長さです。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{limit_req_line}
+整数値で、HTTP リクエスト行のサイズの上限です。
+  Integer. Limit on size of the HTTP request line.
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{limit_req_fieldsize}
+整数値で、リクエストヘッダのフィールド長の上限です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\begin{memberdesc}[server]{limit_req_fields}
+整数値で、リクエストヘッダのフィールド数の上限です。
+  \emph{(読み出し専用)}
+\end{memberdesc}
+
+\section{\module{util} -- 雑多なユーティリティ\label{pyapi-util}}
+\declaremodule[util]{extension}{util}
+\modulesynopsis{Miscellaneous Utilities}
+\moduleauthor{Gregory Trubetskoy}{grisha@apache.org}
+
+\module{util} モジュールでは、Web アプリケーションの開発者にとって便利な、
+標準ライブラリの\module{cgi} モジュールのような数々のユーティリティを提供
+しています。
+
+
+\module{util} モジュールの実装は\module{cgi} よりも格段に高速です。
+というのも、CGI を使う場合には情報を受け渡すのに環境変数を使うのに対し、
+\module{util} は Apache の API を直接呼び出しているからです。
+
+このモジュールを使うには:
+\begin{verbatim}
+from mod_python import util
+\end{verbatim}
+のようにして import するよう勧めます。
+
+\begin{seealso}
+  \seetitle[http://CGI-Spec.Golux.Com/]
+           {Common Gateway Interface RFC Project Page}
+           {CGI に関する仕様の詳しい情報です。}
+\end{seealso}
+
+\subsection{FieldStorage クラス\label{pyapi-util-fstor}}
+
+フォームデータへのアクセスは \class{FieldStorage} クラスを
+使って行います。このクラスは標準ライブラリモジュール \module{cgi} の
+\class{FieldStorage} によく似ています。
+
+\begin{classdesc}{FieldStorage}{req\optional{, keep_blank_values, strict_parsing}}
+クライアントから提出された HTML フォームデータに一様な方法でアクセスする手段を
+提供します。 \var{req} は \module{mod_python} のリクエストオブジェクト
+のインスタンスです。
+
+オプションの引数 \var{keep_blank_values} は、URL エンコードされた
+フォームデータ中のブランクの値を空文字列として扱うかどうかを指示するフラグ
+です。デフォルトの値は \code{False} であり、ブランクの値を無視して
+値がなかったかのようにふるまいます。
+
+オプションの引数 \var{strict_parsing} はまだ実装されていません。
+
+初期化の過程で、\class{FieldStorage} クラスはクライアントから得た
+全てのデータを読み出します。この時点でクライアントから得られたデータは
+全て消費されてしまうため、一つのリクエストに対しては一つの
+\class{FieldStorage} クラスしかインスタンス化できません。
+また、\class{FieldStorage}をインスタンス化する前にいかなる
+クライアントデータを読み出そうとしてもなりません。
+
+次に、クライアントから読み出されたデータは解析され、個別のフィールドに
+分割され、各フィールドごとに\class{Field} オブジェクトとしてパックされます。
+\code{file} 型の HTML フォーム入力の場合、一時ファイルが作成され、
+\class{Field} オブジェクトの\member{file} 属性からアクセスできるように
+なります。
+
+\class{FieldStorage} クラスはマップ型オブジェクトのインタフェースを
+備えています。つまり、このクラスのインスタンスは辞書のように扱えるのです。
+マップ型として使う場合、キーはフォームの名前で、戻り値は以下の
+いずれかになります:
+
+  \begin{itemize}
+  \item
+ \class{StringField} クラスのインスタンスで、フォームに入力された値が
+入っています。ある名前のフォームに対して値が一つだけ対応している場合に
+限り、この形式になります。
+\class{StringField} は\class{str} のサブクラスで、標準ライブラリの
+\module{cgi} モジュールと互換性をもたせるために \member{value} 属性
+が追加されています。
+  \item
+ファイルのアップロード入力の場合の\class{Field} クラスのインスタンス
+です。
+  \item
+\class{StringField} かつ/または \class{Field} オブジェクトからなる
+リストです。\code{<select>} フォームエレメントのように、複数の値が
+存在する場合にはこの形式になります。
+  \end{itemize}
+
+  \begin{notice}
+標準ライブラリの \module{cgi} モジュールにおける\class{FieldStorage} 
+クラスと違い、\class{Field} オブジェクトを返すのはファイルのアップロード
+時\emph{だけ} です。それ以外の場合には \class{StringField} の
+インスタンスを返します。従って、ほとんどの場合、フィールドの値に
+アクセスするために \member{.value} 属性を使う必要はありません。
+  \end{notice}
+
+標準のマップ型オブジェクトがサポートしているメソッドの他に、
+\class{FieldStorage} オブジェクトでは以下のような属性があります:
+
+  \begin{memberdesc}{list}
+各入力に対する\class{Field} オブジェクトでできたリストです。
+同じ名前に対して複数の入力があった場合、リスト中には複数の要素が
+入ります。
+  \end{memberdesc}
+
+以下は \class{FieldStorage} のメソッドです:
+
+  \begin{methoddesc}[FieldStorage]{getfirst}{name\optional{, default}}
+フォームフィールド \var{name} に関連づけられた値を常に一つの値にして
+返します。対応するフォームフィールドや値が存在しない場合には、オプションの
+引数\var{default}に指定された値を返します。\var{default} を指定しない
+場合、デフォルトの値は\code{None} です。
+  \end{methoddesc}
+
+  \begin{methoddesc}[FieldStorage]{getlist}{name}
+このメソッドは\var{name} に関連づけられた値を常にリストにして返します。
+\var{name} に対応するフォームフィールドや値が存在しない場合には空のリストを
+返します。値が一つだけの場合にも、要素が一つのリストを返します。
+  \end{methoddesc}
+
+\end{classdesc}
+
+\subsection{Field クラス\label{pyapi-util-fstor-fld}}
+
+\begin{classdesc}{Field}{}
+\class{FieldStorage} クラスが内部で使っているクラスで、ユーザが
+インスタンス化するためのものではありません。個々の\class{Field} クラスの
+インスタンスは HTML フォーム入力を表現します。
+
+  \class{Field} には以下の属性があります:
+
+  \begin{memberdesc}{name}
+入力名です。
+  \end{memberdesc}
+
+  \begin{memberdesc}{value}
+入力値です。この属性はファイルアップロードに対するデータを読み出す際にも
+使えますが、\member{value} を使ってファイルにアクセスする場合、ファイル全体を
+一度メモリに読み込むので、巨大なファイルを扱う場合によく注意してください。
+  \end{memberdesc}
+
+  \begin{memberdesc}{file}
+ファイルオブジェクトです。ファイルアップロードの場合には一時ファイルを指して
+います。単純な値の場合には \class{StringIO} オブジェクトになるので、
+\member{value} の代わりにこの値を使っても単純な文字列値を読み出せます。
+  \end{memberdesc}
+
+  \begin{memberdesc}{filename}
+クライアントから提供されたファイルの名前です。
+  \end{memberdesc}
+
+  \begin{memberdesc}{type}
+クライアントから提供された、この入力のコンテンツタイプです。
+  \end{memberdesc}
+
+  \begin{memberdesc}{type_options}
+クライアントが\code{content-type} で実際のコンテンツタイプを提供している
+場合、そこから作成した値になります。この値は辞書型です。
+  \end{memberdesc}
+
+  \begin{memberdesc}{disposition}
+\code{content-disposition} ヘッダの最初の部分の値です。
+  \end{memberdesc}
+
+  \begin{memberdesc}{disposition_options}
+\code{content-disposition} ヘッダが辞書形式で二つめの部分がある場合、その値です。
+  \end{memberdesc}
+
+  \begin{seealso}
+    \seerfc{1867}{Form-based File Upload in HTML}{フォームベースのファイル
+アップロードに関する解説}
+  \end{seealso}
+\end{classdesc}
+
+\subsection{その他の関数\label{pyapi-util-funcs}}
+
+\begin{funcdesc}{parse_qs}{qs\optional{, keep_blank_values, strict_parsing}}
+
+この関数は機能的に標準ライブラリの \module{cgi} モジュールにおける
+\function{parse_qs} と同じです。ただしこちらは C で書かれていてはるかに高速です。
+
+引数に指定したクエリ文字列 (\mimetype{application/x-www-form-urlencoded}
+型のデータ) を解析し、データを辞書の形にして返します。辞書のキーは
+一意なクエリ変数名で、辞書の値は各名前に対応する値のリストです。
+
+オプションの引数 \var{keep_blank_values} はフラグで、URL エンコード
+されたクエリ中の空白の値を空文字列として扱うかどうかを指示するフラグです。
+値を真にすると、空白の値は空文字列のまま残ります。デフォルトの値は偽で、
+この場合空白の値は無視され、クエリに存在しなかったかのように扱われます。
+  \begin{notice}
+\var{strict_pasrsing} 引数はまだ実装されていません。
+  \end{notice}
+
+\end{funcdesc}
+
+
+\begin{funcdesc}{parse_qsl}{qs\optional{, keep_blank_values, strict_parsing}}
+
+この関数は機能的に標準ライブラリの \module{cgi} モジュールにおける
+\function{parse_qsl} と同じです。ただしこちらは C で書かれていてはるかに高速です。
+
+引数に指定したクエリ文字列 (\mimetype{application/x-www-form-urlencoded}
+型のデータ) を解析し、データを辞書の形にして返します。辞書のキーは
+一意なクエリ変数名で、辞書の値は各名前に対応する値のリストです。
+
+オプションの引数 \var{keep_blank_values} はフラグで、URL エンコード
+されたクエリ中の空白の値を空文字列として扱うかどうかを指示するフラグです。
+値を真にすると、空白の値は空文字列のまま残ります。デフォルトの値は偽で、
+この場合空白の値は無視され、クエリに存在しなかったかのように扱われます。
+  \begin{notice}
+\var{strict_pasrsing} 引数はまだ実装されていません。
+  \end{notice}
+
+\end{funcdesc}
+
+\begin{funcdesc}{redirect}{req, location\optional{, permanent=0, text=None}}
+ブラウザを他の場所にリダイレクトするための便宜関数です。\var{permanent} 
+が真の場合、\constant{MOVED_PERMANENTLY} ステータスコードをクライアントに
+送信します。それ以外の場合、\constant{MOVED_TEMPORARILY} を送信します。
+(リダイレクトをサポートしないごく少数のブラウザ向けに) ドキュメントが移動
+してしまったことを知らせる短いテキストを送信します。このテキストの内容は
+\var{text} でオーバライドできます。
+
+ヘッダをすでに送信した後にこの関数を呼び出すよ、\exception{IOError} を
+送出します。
+
+この関数は \exception{apache.SERVER_RETURN} 例外を送出して、
+ハンドラの処理をこれ以上行わないようにします。この振舞いが望ましくない
+場合、\function{redirect} への呼び出しを try/except ブロックで
+ラップして、\exception{apache.SERVER_RETURN} を捕捉してください。
+\end{funcdesc}
+
+\section{\module{Cookie} -- HTTP 状態管理\label{pyapi-cookie}}
+\declaremodule[Cookie]{extension}{Cookie}
+\modulesynopsis{HTTP 状態管理}
+\moduleauthor{Gregory Trubetskoy}{grisha@apache.org}
+
+
+\module{Cookie} モジュールでは、Netscapeの発表した仕様で定義されている
+HTTP クッキーの生成と解析、および送受信を簡単に行う方法を提供しています。
+
+\begin{notice}
+クッキーを使った HTTP 状態管理について説明している公式の IETF RFC は
+実在するものの、ほとんどのブラウザがサポートしているデファクトスタンダードは
+もとの Netscape 仕様です。さらに、 IETF の標準に完全に準拠した場合、
+RFC 準拠であるにもかかわらず広く使われている多くのブラウザと互換性が
+なくなってしまいます。そこで、このモジュールでは現在実際に広く使われて
+いる仕様を使います。完全な RFC 準拠ではありません。
+\end{notice}
+
+\begin{seealso}
+  \seetitle[http://wp.netscape.com/newsref/std/cookie_spec.html]
+           {Persistent Client State - HTTP Cookies}{Netscape によるオリジナルの仕様です。}
+           \seerfc{2109}{HTTP State Management Mechanism}{クッキーに関する最初の RFC です。}
+           \seerfc{2964}{Use of HTTP State Management}{クッキーの用法についてのガイドラインです。}
+           \seerfc{2965}{HTTP State Management Mechanism}{最新の IETF 標準です。}
+           \seetitle[http://arxiv.org/abs/cs.SE/0105018]
+                    {HTTP Cookies: Standards, Privacy, and Politics}{David M. Kristol による、クッキーの標準化にまつわる諸問題について概観した素晴らしい文献です。}
+\end{seealso}
+
+\subsection{クラス\label{pyapi-cookie-classes}}
+
+\begin{classdesc}{Cookie}{name, value\optional{, attributes}}
+
+このクラスは\var{name} という名前を持ち、\var{value} を値に持つ
+単一のクッキーを生成するために使います。加えて、Netscape の仕様と RFC2109 
+で定義されている属性もキーワード引数で渡せます。
+
+オブジェクトの属性はクッキーの属性を表しており、その文字列表記は
+クッキーの文字列表記の一部になります。
+\class{Cookie} クラスは属性名を有効なものだけに制限していて、実際には
+\code{name, value, version, path, domain, secure, comment,
+  expires, max_age, commentURL, discard, port, __data__}
+だけが許されています。
+
+\code{__data__} 属性は汎用の辞書で、必要に応じて任意の値を入れられます
+(\class{Cookie} をサブクラス化する場合に便利です)。
+
+\member{expires} 属性の値は、設定時に\samp{Wdy, DD-Mon-YYYY HH:MM:SS GMT} の
+形式 (Netscape のクッキー仕様で定義されている形式) またはエポックからの経過秒数
+(この値は自動的に GMT における正しい時刻文字列に変換されます) のいずれかに
+なっているかチェックを受けます。不正な \code{expire} 値を指定すると
+\exception{ValueError} を送出します。
+
+\class{Cookie} オブジェクトを文字列に変換すると、\samp{Cookie} や
+\samp{Set-Cookie} ヘッダの値として使える正しい形式の文字列になります。
+
+  \begin{notice}
+Python 標準ライブラリの\class{Cookie} クラスと違い、このクラスは
+単一のクッキーを表現しています (Python 標準ライブラリでは\dfn{Morsel}
+に相当します)。
+  \end{notice}
+
+  \begin{methoddesc}[Cookie]{parse}{string}
+この関数は、ヘッダの値として渡されるクッキー表現文字列 (cookie string) 
+\var{string} から\class{Cookie} インスタンスを生成する際に使う
+クラスメソッドです。クッキー表現文字列の解析の過程で、各属性名は全て
+小文字に変換されます。
+
+このメソッドはクラスメソッドなので、クラス名を明示的に指定して呼び出さねば
+なりません。
+
+このメソッドは単一の\class{Cookie} インスタンスではなく\class{Cookie} 
+インスタンスの入った辞書を返します。
+
+単一の\class{Cookie} インスタンスをクッキー表現文字列から取り出す例を
+以下に示します:
+    \begin{verbatim}
+mycookies = Cookie.parse("spam=eggs; expires=Sat, 14-Jun-2003 02:42:36 GMT")
+spamcookie = mycookies["spam"]
+    \end{verbatim}
+
+    \begin{notice}
+このメソッドでは辞書を使っているため、名前の重複する複数のクッキーは扱えません。
+一つのクッキーに複数の値を持たせたい場合には、\class{MarshalCookie} の
+使用を検討してください。
+    \end{notice}
+
+  \end{methoddesc}
+
+\end{classdesc}
+
+\begin{classdesc}{SignedCookie}{name, value, secret\optional{, attributes}}
+
+\class{Cookie} のサブクラスです。このクラスで生成されるクッキーの名前と
+値は、\var{secret} に指定した暗号鍵を使って自動的に署名されます。
+\var{secret} を空文字列にしてはなりません。
+
+  \begin{methoddesc}[SignedCookie]{parse}{string, secret}
+\class{Cookie.parse()} と同じようにふるまいますが、クッキーが正しく
+署名されているかどうかを調べます。署名を検証できない場合、\class{Cookie}
+クラスのオブジェクトを返します。
+
+    \begin{notice}
+\method{SignedCookie.parse()} の返すオブジェクトの型は必ず調べるように
+してください。オブジェクトが\class{Cookie} のインスタンスである場合
+(\class{SignedCookie} でない場合)、署名の検証に失敗しています:
+      \begin{verbatim}
+# assume spam is supposed to be a signed cookie
+if type(spam) is not Cookie.SignedCookie:
+    # do something that indicates cookie isn't signed correctly
+      \end{verbatim}
+    \end{notice}
+  \end{methoddesc}
+
+\end{classdesc}
+
+\begin{classdesc}{MarshalCookie}{name, value, secret\optional{, attributes}}
+
+\class{SignedCookie} のサブクラスです。このクラスを使うと\var{value} 
+を任意の整列化(marshal)可能なオブジェクトにできます。文字列、整数、リスト
+などといったコアの Python データ型は全て整列化できます。
+整列化できるオブジェクトの完全なリストは
+  \citetitle[http://www.python.org/doc/current/lib/module-marshal.html]{marshal}モジュールのドキュメントを参照してください。
+
+クッキー解析時、まず署名をチェックします。従って、正しく署名されていないクッキーは
+整列化状態から戻せません。
+
+\end{classdesc}
+
+\subsection{関数\label{pyapi-cookie-func}}
+
+\begin{funcdesc}{add_cookie}{req, cookie\optional{, value, attributes}}
+クッキーをリクエストヘッダに設定するための便宜関数です。
+\var{req} は\module{mod_python} の\class{Request} オブジェクトです。
+\var{cookie} が\class{Cookie} (またはそのサブクラス) のインスタンス
+ならばクッキーをセットします。そうでない場合には \var{cookie} は文字列
+でなければならず、\var{cookie} を名前に、\var{value} を値に持ち、かつ
+キーワード引数に指定した有効な\class{Cookie} の属性を持つような
+\class{Cookie}が構築されます。
+
+また、この関数は\samp{Cache-Control: no-cache="set-cookie"} ヘッダを
+設定して、クッキーの値をキャッシュしないようキャッシュメカニズムに伝えます。
+
+関数の使い方を一つ紹介します:
+  \begin{verbatim}
+c = Cookie.Cookie('spam', 'eggs', expires=time.time()+300)
+Cookie.add_cookie(req, c)
+  \end{verbatim}
+
+別の使い方です:
+  \begin{verbatim}
+Cookie.add_cookie(req, 'spam', 'eggs', expires=time.time()+300)
+  \end{verbatim}
+\end{funcdesc}
+
+\begin{funcdesc}{get_cookies}{req \optional{, Class, data}}
+サーバに届いたヘッダからクッキーを取得するための便宜関数です。
+\var{req} は\module{mod_python} の\class{Request} オブジェクトです。
+\var{Class} は\method{parse()} メソッドでクッキーを解析する時に使う
+クラスで、デフォルトは\code{Cookie} です。\var{data} は任意の数の
+キーワード引数で、\method{parse()} に渡されます (\method{parse} の追加
+引数として \code{secret} が必要な\class{SignedCookie} や
+\class{MarshalCookie} クラスの場合に便利です)。
+\end{funcdesc}
+
+\subsection{例\label{pyapi-cookie-example}}
+
+以下の例では、300 秒で期限の切れる単純なクッキーをセットしています:
+
+\begin{verbatim}
+from mod_python import Cookie, apache
+import time
+
+def handler(req):
+
+    cookie = Cookie.Cookie('eggs', 'spam')
+    cookie.expires = time.time() + 300
+    Cookie.add_cookie(req, cookie)
+
+    req.write('This response contains a cookie!\n')
+    return apache.OK
+
+\end{verbatim}
+
+この例では、サーバに marshal クッキーが送信されていないか調べ、送信されて
+いればその内容をクライアントに送信します。クッキーが送信されていない場合、
+新たな marshal クッキーをセットします。この例では\samp{secret007} を
+HMAC 署名の暗号鍵に使っています。
+
+\begin{verbatim}
+from mod_python import apache, Cookie
+
+def handler(req):
+    
+    cookies = Cookie.get_cookie(req, Cookie.MarshalCookie,
+                                    secret='secret007')
+    if cookies.has_key('spam'):
+        spamcookie = cookies['spam']
+
+        req.write('Great, a spam cookie was found: %s\n' \
+                                      % str(spamcookie))
+        if type(spamcookie) is Cookie.MarshalCookie:
+            req.write('Here is what it looks like decoded: %s=%s\n'
+                      % (spamcookie.name, spamcookie.value))
+        else:
+            req.write('WARNING: The cookie found is not a \
+                       MarshalCookie, it may have been tapered with!')
+
+    else:
+
+        # MarshaCookie allows value to be any marshallable object
+        value = {'egg_count': 32, 'color': 'white'}
+        Cookie.add_cookie(req, Cookie.MarshalCookie('spam', value, \
+                          'secret007'))
+        req.write('Spam cookie not found, but we just set one!\n')
+
+    return apache.OK
+\end{verbatim}
+
+\section{\module{Session} -- セッション管理\label{pyapi-sess}}
+\declaremodule[Session]{extension}{Session}
+\modulesynopsis{Session Management}
+\moduleauthor{Gregory Trubetskoy}{grisha@apache.org}
+
+\module{Session} モジュールでは、リクエスト間をまたぐ持続性 (persistent) 
+のセッションを管理するオブジェクトを提供しています。
+
+このモジュールには \class{BaseSession} クラスと \class{DbmSession} クラス
+が入っています。\class{BaseSession} は直接使うためのクラスではありません
+(セッションを保存する手段を持っていません)。一方、\class{DbmSession} クラス
+は \module{dbm} を使ってセッションを保存します。
+
+\class{BaseSession} クラスでは、プロセス間やスレッド間でセッションをロック
+するメカニズムも提供しています。ロックには APR の\cdata{global_mutex}
+を使います (このロックは起動時にあらかじめ複数作成されます)。 mutex の
+識別番号はセッション id の法 (modulus) を使って (\function{hash()} で)
+計算されます。(従って、異なるセッション id が同じハッシュ値になる可能性は
+あります。しかし、結果的には、これら二つのセッションが同時にロックされる
+ことはあり得ないため、わずかな処理の遅延が起こるにすぎません。
+
+\subsection{Classes\label{pyapi-sess-classes}}
+
+\begin{funcdesc}{Session}{req\optional{, sid, secret, timeout, lock, lockfile}}
+この関数は MPM に問い合わせを行い、その結果に基づいて \class{DbmSession} か
+\class{MemorySession} のいずれかの新たなインスタンスを返します。
+この関数は\class{BaseSession} と同じ引数を取ります。
+
+MPM がスレッドで動作しており、かつ fork していない場合 (Windows のようなケース
+です) や、スレッドで動作し fork してはいるがプロセス数が一つに制限されている場合
+(このように動作させるには作業者 MPM (worker MPM) を設定します) 場合には
+\class{MemorySession} が使われます。
+それ以外の場合には\class{DbmSession} が使われます。
+\end{funcdesc}
+
+\begin{classdesc}{BaseSession}{req\optional{, sid, secret, timeout, lock, lockfile}}
+
+このクラスは、実際のセッション保存メカニズムを実装している別のクラスの基底
+クラスとして使われています。\var{req} は必須の引数で、\module{mod_python} 
+のリクエストオブジェクトを参照していなければなりません。
+
+\class{BaseSession} は\class{dict} のサブクラスです。
+セッションを辞書として使うことで、データをセッションに保存したりセッションから
+取り出したりできます。
+
+\var{sid} はオプションのセッション id です。この値を指定する場合、該当する
+セッションが既に実在していなければなりません。該当するセッションが実在しない
+場合、\var{sid} は無視され、新たなセッション id を持ったセッションが生成
+されます。\var{sid} を指定しなかった場合、オブジェクトはクッキーの中から
+セッション id を捜し出そうとします。クッキー中にセッション id が見つかったが、
+未知のセッション id だったりセッションが期限切れになっている場合、新たな
+セッション id を作成します。セッションが「新しい(new)」かどうかは、
+\method{is_new()} メソッドを呼び出せば判別できます。
+
+セッションで作成したクッキーは、サーバの \code{DocumentRoot} と
+現在の処理を担当している\code{PythonHandler} ディレクティブの場所
+を比較して算出した path 属性を持ちます。例えば、ドキュメントルートが
+\file{/a/b/c} で\code{PythonHandler} を指定した場所が\file{/a/b/c/d/e} 
+の場合、path は\file{/d/e} になります。\code{ApplicationPath} オプションを
+使うと、特定のパス名を強制的に指定できます (サーバ設定内で、
+\samp{PythonOption ApplicationPath  /my/path} のように指定します)。
+
+\var{secret} を指定した場合、\class{BaseSession} はクッキー生成時に
+\class{SignedCookie} を使い、セッション id の偽造をほぼ不可能にします。
+デフォルトでは通常の \class{Cookie} を使います (たとえ署名されていなくても、
+セッション id は非常に推測しにくい方法で生成されています)。
+
+セッションは、\var{timeout} 以上の間アクセスを受けないとタイムアウトします。
+\var{timeout} のデフォルト値は 30 分です。期限切れのセッションに
+アクセスしようとすると「新たな」セッションが開始されます。
+
+\var{lock} 引数はロックを行うかどうかを表します (デフォルト値は 1 です)。
+ロックが有効になっている場合、一度に一つのセッション id について一つのセッション
+オブジェクトしかインスタンス化できません。このとき、\var{lockfile} はプロセス間
+のロックに使うファイルの名前です。
+
+セッション id が新たに生成された状態では、セッションは「新しい」といいます。
+その逆は、セッション id をクッキーや \var{sid} 引数で指定した場合です。
+
+  \begin{methoddesc}[BaseSession]{is_new}{}
+セッションが新しい場合、1 を返します。期限切れのセッションや実在しない
+セッションのインスタンスを生成しようとした場合にも、「新しい」セッションに
+なります。例えば以下のように、セッションのインスタンスを生成する試みが成功したか
+どうかを調べる場合にはこのメソッドが重要になります:
+    \begin{verbatim}
+sess = Session(req)
+if sess.is_new():
+    # redirect to login
+    util.redirect(req, 'http://www.mysite.com/login')
+    \end{verbatim}
+  \end{methoddesc}
+
+
+  \begin{methoddesc}[BaseSession]{id}{}
+セッションの id を返します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{created}{}
+セッションの生成時刻をエポック (epoch) からの経過秒数で返します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{last_accessed}{}
+セッションの最終あq癖素時刻をエポックからの経過秒数で返します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{timeout}{}
+セッションのタイムアウト期限を秒数で返します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{set_timeout}{secs}
+セッションのタイムアウト期限を\var{secs} 秒にします。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{invalidate}{}
+セッションを永続化ストレージ (persistent store) から削除し、
+該当するセッション id のクッキーを無効化するためのヘッダを出力ヘッダ部に
+配置します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{load}{}
+セッションの値をストレージから読み出します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{save}{}
+セッションの値をストレージに書き込みます。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{delete}{}
+セッションをストレージから削除します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{init_lock}{}
+セッションのロックを初期化します。このメソッドを呼び出す必要はありません。
+このメソッドが定義されているのはサブクラスで別のロックメカニズムを
+使いたい場合のためです。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{lock}{}
+セッションをロックします。他のスレッドやプロセスがすでにセッションをロックして
+いる場合、ロックが解除されるまで待機します。ロックを自動的に制御している場合
+(デフォルトの場合) には、このメソッドを呼び出す必要はありません。
+
+このメソッドはリクエスト処理の終了時に常にセッションのロックを解除する
+ような後処理関数を登録します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{unlock}{}
+セッションのロックを解除します (\method{lock()} と同じく、ロックが自動制御
+(デフォルト) の場合には、このメソッドを呼び出す必要はありません)。
+  \end{methoddesc}
+
+  \begin{methoddesc}[BaseSession]{cleanup}{}
+サブクラスでセッションストレージを消去 (期限切れのセッションを削除する
+など) するメカニズムを実装するためのメソッドです。このメソッドは
+ランダムに呼び出されることになり、呼び出しの起きる確率は\module{Session}
+モジュールの変数 \constant{CLEANUP_CHANCE} で制御されています
+(デフォルトの値は 1000 です)。この値は、ストレージの消去がランダムに
+発生し、その確率が 1000 分の 1 であることを意味します。
+サブクラスでこのメソッドを実装する場合、必ずしも (時間のかかる) 消去
+処理をこのメソッド内で行わなくても構いませんが、その場合には
+\method{req.register_cleanup} を使ってリクエストの処理後に実行
+される後処理関数を登録してください。
+  \end{methoddesc}
+
+\end{classdesc}
+
+\begin{classdesc}{MemorySession}{req, \optional{, sid, secret, dbmtype, timeout, lock}}
+
+このクラスでは、グローバル名前空間上の辞書を使ったセッションストレージを
+提供しています。このクラスはパフォーマンスの点では最高ですが、マルチプロセス
+の設定では利用できず、アクティブなセッションができるたびにメモリを消費するという
+問題があります。
+
+このクラスを直接使うとクロスプラットフォームにならないので注意してください。
+できるだけプラットフォーム間での互換性をもたせたければ、常に\function{Session()}
+を使うようにしてください。
+
+\end{classdesc}
+
+\begin{classdesc}{DbmSession}{req, \optional{, dbm, sid, secret, dbmtype, timeout, lock}}
+
+このクラスでは、dbm ファイルを使ったセッションストレージを
+提供しています。dbm のアクセスは非常に高速で、ほとんどの dbm 実装では
+メモリマップファイルを使って高速化を実現しているため、ほぼ共有メモリ
+アクセスに近いパフォーマンスを出せます。
+
+\var{dbm} は dbm ファイルの名前です (ファイルは httpd プロセスから読み書き
+できなければなりません) このファイルはサーバプロセスが停止しても削除されません
+(このため、サーバが再起動してもセッションは死なないという便利な副作用があります)。
+デフォルトでは、セッション情報は\code{tempfile.gettempdir()} 標準ライブラリ
+関数の返す一時ディレクトリ下の \file{mp_sess.dbm} というファイルになります。
+このデフォルト値は \code{PythonOption SessionDbm filename} を設定して
+オーバライドできます。
+
+実装では Python の \module{anydbm} モジュールを使っています。
+このモジュールは、デフォルトではほとんどのシステムで \module{dbhash} を
+使います。特定の dbm 実装 (例えば \module{gdbm}) を使いたければ、
+\var{dbmtype} にモジュールを渡せます。
+
+このクラスを直接使うとクロスプラットフォームにならないので注意してください。
+できるだけプラットフォーム間での互換性をもたせたければ、常に\function{Session()}
+を使うようにしてください。
+
+\end{classdesc}
+
+\section{\module{psp} -- Python Server Pages
+  \label{pyapi-psp}}
+\declaremodule[psp]{extension}{psp}
+\modulesynopsis{Python Server Pages}
+\moduleauthor{Gregory Trubetskoy}{grisha@apache.org}
+
+\module{psp} モジュールでは、特別なブラケット表記中に Python コードを
+埋め込んだテキストドキュメント (HTMLも含みますが、それだけではありません)
+を変換して、 \module{mod_python} ハンドラ内で実行できるような適切な
+形式の pure Python コードにします。これにより、ASP や JSP などといった
+動的なコンテンツを配信するための融通のきくメカニズムを実現しています。
+
+\module{psp} の使っているパーザは (flex で生成した) C で書かれている
+ため、非常に高速に動作します。
+
+\emph{PSP の詳細については\ref{hand-psp} 節「PSP ハンドラ」を参照してください。}
+
+ドキュメント中の Python の\dfn{コード (code)} は\samp{<\%} と \samp{\%>}
+で囲わねばなりません。Python の\dfn{式 (expression)} は\samp{<\%=} と
+\samp{\%>} で囲みます。\dfn{ディレクティブ (directive)} は\samp{<\%@}
+と \samp{\%>} で囲みます。コメント(処理後のコード中には入りません) は
+\samp{<\%--} と \samp{--\%>} で囲います。
+
+コードと式の両方をを HTML ドキュメントに埋め込んでいる
+簡単な PSP ページを以下に示します:
+
+\begin{verbatim}
+  <html>
+  <%
+  import time
+  %>
+  Hello world, the time is: <%=time.strftime("%Y-%m-%d, %H:%M:%S")%>
+  </html>
+\end{verbatim}
+
+内部では、PSP パーザが上のページを以下の Python コードに翻訳します:
+
+\begin{verbatim}
+  req.write("""<html>
+  """)
+  import time
+  req.write("""
+  Hello world, the time is: """); req.write(str(time.strftime("%Y-%m-%d, %H:%M:%S"))); req.write("""
+  </html>
+  """)
+\end{verbatim}
+
+このコードをハンドラ内で実行すると、\samp{Hello world, the time is:} 
+の後ろに現在の時刻が入ったページになります。
+
+Python コードを使って、条件やループでページの一部分を表示できます。
+Python コード内のブロックはインデントで表現されます。ある Python コード
+ブロックの最後の行のインデントは (コメント文であっても) ドキュメントの
+末尾か、次の Python コードブロックまで持続します。
+
+例を示します:
+\begin{verbatim}
+  <html>
+  <%
+  for n in range(3):
+      # This indent will persist
+  %>
+  <p>This paragraph will be 
+  repeated 3 times.</p>
+  <%
+  # This line will cause the block to end
+  %>
+  This line will only be shown once.<br>
+  </html>
+\end{verbatim}
+
+上の例は、内部的には以下の Python コードになります:
+
+\begin{verbatim}
+  req.write("""<html>
+  """)
+  for n in range(3):
+      # This indent will persist
+      req.write("""
+  <p>This paragraph will be
+  repeated 3 times.</p>
+  """)
+  # This line will cause the block to end
+  req.write("""
+  This line will only be shown once.<br>
+  </html>
+  """)
+\end{verbatim}
+
+パーザは賢くて、Python コードブロックの最後の行が \samp{:} (コロン)
+で終っている場合にも正しくインデントを推測します。このことと、
+\samp{<\% \%>} の中で改行に到達するとインデントはリセットされることを
+考慮すると、上のページは以下のようにも書けます:
+
+\begin{verbatim}
+  <html>
+  <%
+  for n in range(3):
+  %>
+  <p>This paragraph will be 
+  repeated 3 times.</p>
+  <%
+  %>
+  This line will only be shown once.<br>
+  </html>
+\end{verbatim}
+
+とはいえ、このコードには困惑させられるでしょう。ですから、行儀として、
+ブロック間で説明用のコメントを入れておくよう強く勧めます。
+
+現時点でサポートしているディレクティブは \code{include} だけで、
+以下のようにして使います:
+
+\begin{verbatim}
+<%@ include file="/file/to/include"%>
+\end{verbatim}
+
+\function{parse()} 関数を \var{dir} 引数つきで呼び出す場合には、
+\samp{file} は相対パスで指定できます。それ以外の場合には絶対パスで
+なければなりません。
+
+\begin{classdesc}{PSP}{req, \optional{, filename, string, vars}}
+PSP オブジェクトを表すクラスです。
+
+\var{req} はリクエストオブジェクトです; \var{filename} および\var{string}
+はオプションのキーワード引数で、 PSP コードのソースを表します。
+これらの変数はいずれか一つだけを指定できます。両方とも指定しなかった場合、
+\var{filename} に\code{req.filename} を使います。
+
+\var{vars} はグローバル変数の辞書です。\method{run()} メソッドに
+変数を渡すと、ここで渡した\var{vars} の内容をオーバライドします。
+
+このクラスは PSP ハンドラが内部で利用しますが、汎用のテンプレートツール
+としても使えます。
+
+ファイルをソースに使う場合、特定のファイルから得られるコードオブジェクトは
+ファイル名と更新時刻をキーにしてメモリキャッシュ上に保存されます。
+キャッシュは Python インタプリタ上のグローバルな値です。従って、
+ファイル更新時刻が変わらない限り、ファイルのパーズとコードオブジェクトの
+コンパイルはインタプリタごとに一度しか行いません。
+
+キャッシュされたページのサイズが時としてかなりのメモリを消費することが
+あるため、キャッシュのサイズは 512 ページに制限されています。
+メモリの消費量が問題になる場合は dbm によるファイルキャッシュに切替え
+られます。bsd db を使った簡単なテストでは、速度はわずか 20\% しか低下
+しませんでした。dbm ライブラリによってはレコードエントリのサイズに制限を
+課しているために利用できないことがあります。そのため、自分のシステムでの
+\module{anydbm}のデフォルトの実装が何かを調べておく必要があるでしょう。
+dbm によるキャッシュは\samp{PythonOption}ディレクティブに
+\code{PSPDbmCache} を指定して有効にします:
+
+\begin{verbatim}
+PythonOption PSPDbmCache ``/tmp/pspcache.dbm''
+\end{verbatim}
+
+dbm キャッシュファイルはサーバの再起動時に削除されないので注意してください。
+
+ファイルと違い、文字列から生成したコードオブジェクトはメモリ上にしか
+キャッシュされません。現時点では、dbm ファイル上にキャッシュするという
+選択肢はありません。
+
+  \begin{methoddesc}[PSP]{run}{\optional{vars}}
+このメソッドは(初期化時にPSPソースを解析／コンパイルしてできた)コードを
+実行します。オプションの引数 \var{vars} は文字列をキーにした
+辞書で、グローバル変数の辞書として渡されます。
+
+さらに、PSP コードには \code{req}, \code{psp}, \code{session} および
+\code{form} といったグローバル変数が渡されます。
+コード中で\code{session} を参照している場合に限り、セッション情報が生成され、
+変数\code{session} に代入されます (PSP ハンドラはコードオブジェクトの
+\code{co_names} を調べて\code{session} への参照の有無を判定します)。
+\code{session} を一度でも参照すると、好むと好まざるとにかかわらず
+\code{session} はクッキーを生成してセッションのロックを開始するという
+ことを覚えておいてください。同様に、\code{form} がコード中で
+参照されていると、\module{mod_python} クラスの \class{FieldStorage}
+オブジェクトがインスタンス化されます。
+
+\code{psp} には \class{PSPInstance} のインスタンスが渡されます。
+
+  \end{methoddesc}
+
+  \begin{methoddesc}[PSP]{display_code}{}
+元の PSP コードと PSP パーザが生成した Python コードのリストを横に並べた
+ような形に HTML でフォーマットし、文字列にして返します。
+  \end{methoddesc}
+
+\class{PSP} をテンプレートメカニズムとして使う例を以下に示します:
+  
+テンプレートファイルは以下のようになります:
+  \begin{verbatim}
+<html>
+  <!-- This is a simple psp template called template.html -->
+  <h1>Hello, <%=what%>!</h1>
+</html>
+  \end{verbatim}
+ハンドラコードは以下のようになります:
+  \begin{verbatim}
+from mod_python import apache, psp
+
+def handler(req):
+    template = psp.PSP(req, filename='template.html')
+    template.run({'what':'world'})
+    return apache.OK
+  \end{verbatim}
+
+\end{classdesc}
+
+\begin{classdesc}{PSPInstance}{}
+グローバル変数 \code{psp} として PSP コードに渡されるオブジェクトの
+クラスです。このクラスのインスタンスは内部的にインスタンス化されることに
+なっています。\method{__init__} のインタフェースはわざとドキュメント化
+していません。
+
+  \begin{methoddesc}[PSPInstance]{set_error_page}{filename}
+例外が生じたときに処理される psp ページを設定するために使います。
+\var{filename} が絶対パス表記の場合、ドキュメントルートの後ろに
+追加されます。それ以外の場合は現在のページと同じディレクトリにあるものと
+みなします。エラーページは\code{sys.exc_info()} の返す三要素の
+タプルを引数\code{exception} で受け取ります。
+  \end{methoddesc}
+
+  \begin{methoddesc}[PSPInstance]{apply_data}{object\optional{, **kw}}
+このメソッドはフォームデータをキーワード引数にして呼び出し可能オブジェクト
+\var{object} を呼び出し、その結果を返します。
+  \end{methoddesc}
+
+  \begin{methoddesc}[PSPInstance]{redirect}{location\optional{, permanent=0}}
+このメソッドはブラウザを\var{location} にリダイレクトさせます。\var{permanent}
+が真の場合、\constant{MOVED_PERMANENTLY} を送信します(そうでない
+場合には\constant{MOVED_TEMPORARILY} を送信します)。
+
+    \begin{notice}
+リダイレクトを起こせるのはクライアントにデータを送信する前だけです。従って、
+このメソッドを呼び出す Python コードブロックはページの先頭に
+なければなりません。そうでない場合、\exception{IOError} 
+が送出されます。
+    \end{notice}
+
+    例:
+    \begin{verbatim}
+<%
+
+# note that the '<' above is the first byte of the page!
+psp.redirect('http://www.modpython.org')
+%>
+    \end{verbatim}
+  \end{methoddesc}
+
+\end{classdesc}
+
+この他に、 \module{psp} では以下の低水準関数を提供しています:
+
+\begin{funcdesc}{parse}{filename\optional{, dir}}
+
+この関数は\var{filename} という名前のファイルを開き、内容を読み出して
+解析し、得られた Python コードの入った文字列を返します。
+
+\var{dir} を指定すると、解析対象となるファイルの完全な名前を \var{dir}
+と\var{filename} を使って決め、\code{include} ディレクティブの引数を
+相対パスとして指定できるようになります。(ファイル名は単に二つの変数を
+つなげて作成するため、\var{dir} の末尾にパス区切り文字が入っていなくても
+補完されないので注意してください)。
+\end{funcdesc}
+
+\begin{funcdesc}{parsestring}{string}
+
+この関数は \var{string} の内容を解析し、得られた Python コードを
+文字列で返します。
+
+\end{funcdesc}
+

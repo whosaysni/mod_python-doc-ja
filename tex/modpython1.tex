@@ -1,0 +1,104 @@
+\chapter{はじめに\label{introduction}}
+
+\section{パフォーマンス\label{intr-performance}}
+
+\module{mod_python} を使う大きな利点の一つに，従来の CGI に対する大幅な速度向上
+があります．以下に示すのはかなり大雑把なテストの結果です．
+このテストは Red Had Linux 7.3 の動作している 1.2 GHz の Pentium マシン
+上で行いました．これら 4 種類のスクリプトの呼び出しは
+\citetitle[http://httpd.apache.org/docs-2.0/programs/ab.html]{Ab}
+を使って行い，いずれのスクリプトも標準モジュールの \module{cgi}
+を呼び出し (通常の Python CGI スクリプトはみな \module{cgi}
+の import で始めるからです)，その後 \samp{Hello!} を出力するように
+しています．結果は一度に一つづつ，10000 回のリクエストを処理させた
+ときの結果に基づいた値です．
+
+\begin{verbatim}
+
+    標準の CGI:                 23 requests/s
+    Mod_python cgihandler:     385 requests/s
+    Mod_python publisher:      476 requests/s
+    Mod_python handler:       1203 requests/s
+
+\end{verbatim}         
+
+\section{柔軟性\label{intr-flexibility}}
+
+Apache は処理を (リクエストの読み出し，ヘッダの解析，アクセス権限の
+チェックといった) フェイズに分割 します．これらのフェイズは
+ハンドラ (handler) と呼ばれる関数で実装できます．
+伝統的には，ハンドラは C で書いて Apache モジュールにコンパイルします．
+これに対して， \module{mod_python} では Python で Apache ハンドラを書いて，
+Apache の機能を拡張できるのです． Apache のリクエスト処理過程に
+ついての詳しい情報は\citetitle[http://dev.apache.org/API.html]
+{Apache API ノート} や，
+\citetitle[http://www.modpython.org/python10/]{\module{mod_python} -
+  Integrating Python with Apache} といった論文を参照してください．
+
+CGI から移行しやすくするために，標準の \module{mod_python} ハンドラが提供されていて，
+CGI 環境をシミュレートし，ユーザが古いスクリプトのコードを (たいていは)
+ほとんど変更しなくても  \module{mod_python} 下で実行できるようになっています．
+ 
+\begin{seealso}
+  \seeurl{http://dev.apache.org/}{Apache Developer Resources}
+  \seeurl{http://www.modpython.org/python10/}{Mod_Python - Integrating Python with Apache, presented at Python 10}
+\end{seealso}
+
+\section{歴史\label{intr-history}}
+
+\module{mod_python} は，もともと
+\citetitle[http://www.ispol.com/home/grisha/httpdapy/]{Httpdapy}
+というプロジェクトに端を発しています．長い間， Httddapy が
+\module{mod_python} と呼ばれることはありませんでしたが，これは Httpdapy
+が Apache 固有のものを目指してはいなかったからです．
+Httpdapy はクロスプラットフォームになるよう設計されていて，実際
+最初に書かれた Httpdapy は Netscape サーバ向けでした
+(当時は Nsapy と呼ばれていました． 1997 年)．
+
+以下に引用した Httpdapy の README ファイルは，当時の課題と，
+HTTP サーバへの Python 埋め込みがもたらす解決策をよく解説しています:
+
+\begin{quote}
+
+数年前，初めて WWW アプリケーションを開発しているときに，(商用のリレー
+ショナルデータベースであれ，それ以外であれ) RDB に接続する必要のあるプ
+ログラムを CGI で組むと非常に低速になるということがわかりました．
+というのも，検索を行うたびに数メガバイトものサイズのインタプリタの実行
+形式がロードされるし，データベースライブラリ自体も大きくて，おまけにデー
+タベースへの接続と認証のプロセスは DNS の名前解決や暗号化，メモリ確
+保... といった処理が入るために，オーバヘッドが非常に大きくなるからです．
+
+アプリケーションの高速化に迫られて，私は Python を使い続けるのをほとん
+どあきらめ，WWW とデータベースの統合に特化していると謳ったツールを探しはじめ
+ました． MS の ASP を信頼する気には全くなれませんでしたし，Netscape の
+LiveWire の低速さとバグの多さにはイライラしました．Cold Fusion は有望
+でしたが，すぐに html ライクなタグを書くのはプログラムの可読性をアセン
+ブラ並みにすると気づきました．PHP についても同じです．何よりも，私は
+Python で書きたいと *心の底から* 願っていたのです．
+
+ちょうどそのころ， Internet Programming With Python という本が出版され，
+Netscape サーバに Python を埋め込む方法を解説した章に惹かれました．そ
+の例題を自分のプロジェクトに使ってみて，後にNsapy と呼ばれる， Windows
+NT と Solaris の両方でコンパイルできる改良版を開発したのです．Naspy は
+Netscape サーバでしか動きませんでしたが，Naspy はPython の精神に適うと
+ても洗練された汎用のオブジェクト指向設計だったため，他の Web サーバに
+容易に移植できました．
+
+折りしも Netscape 製のサーバは人気を失いつつありました．そこで Nsapy
+を他のサーバに移植することにしました．手始めにもっとも人気のあった
+Apache に移植したのです．かくして，Nsapy から Httpdapy が誕生したので
+す．
+
+\end{quote}
+
+... この話には続きがあります．正直なところ，全てのサーバ向けに
+Httpdapy を書くのは，最初に考えていたよりもちょっと大きな仕事になるし，
+さして興味も沸かなかったのです．
+
+それよりも，人気の高い Perl の Apache 拡張である mod\_perl と同じような
+(あるいはそれ以上の) 機能をもたらすような Python の Apache 拡張を作るのは
+とてもワクワクするできごとに思えたのです．
+
+こうして \module{mod_python} はできました．最初の \module{mod_python} をリリースしたのは
+2000 年の 3 月でした．
+

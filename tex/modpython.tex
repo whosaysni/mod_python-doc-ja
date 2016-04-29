@@ -1,0 +1,73 @@
+% mod_python manual (translated in japanese)
+% coding: euc_jp
+\documentclass{manualjp}
+
+\title{mod\_python マニュアル}
+
+\author{Gregory Trubetskoy\\
+(和訳: 日本Pythonユーザ会)}
+
+% Please at least include a long-lived email address;
+% the rest is at your discretion.
+\authoraddress{
+        E-mail: \email{grisha@apache.org}
+}
+
+% do not mess with the 2 lines below, they are written by make dist
+\release{3.1.3}
+\date{\today}
+
+\makeindex                      % tell \index to actually write the .idx file
+\makemodindex                   % If this contains a lot of module sections.
+
+
+\begin{document}
+
+\maketitle
+
+% This makes the contents more accessible from the front page of the HTML.
+\ifhtml
+\chapter*{Front Matter\label{front}}
+\fi
+
+\input{copyright}
+
+\begin{abstract}
+
+\noindent
+\module{mod_python} を使って Apache サーバに Python を埋め込むと、
+大幅に速度を改善しつつ柔軟に Web ベースアプリケーションを設計できる
+ようになります。
+\noindent
+このドキュメントは\module{mod_python} の網羅的なリファレンスに加え、
+ユーザガイドやチュートリアルとしても使える必要かつ的確な情報源を
+目指して書かれています。
+
+\begin{seealso}
+  \seetitle[http://www.python.org/]
+        {プログラミング言語 Python の Web サイト}{プログラミング言語 
+Python に関する情報}
+  \seetitle[http://httpd.apache.org/]
+        {Apache Server Web サイト}{Apache HTTP サーバに関する情報}
+\end{seealso}
+
+\end{abstract}
+
+\tableofcontents
+
+\input{modpython1} % Introduction
+\input{modpython2} % Installation
+\input{modpython3} % Tutorial
+\input{modpython4} % Python API
+\input{modpython5} % Apache directives
+\input{modpython6} % Handlers
+\appendix
+%\input{appendixa}  % Windows Install
+%\input{appendixb}  % VMS Install
+\input{appendixc}  % Changes
+
+\input{jptranslation}
+
+\input{modpython.ind}
+
+\end{document}

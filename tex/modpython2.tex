@@ -1,0 +1,277 @@
+\chapter{インストール\label{installation}}
+\indexii{installation}{UNIX}
+\indexii{mod_python}{mailing list}
+
+\begin{notice}
+インストールやその他の問題に関して参考になるのは断然 \module{mod_python} 
+メーリングリストです。表題に \samp{subscribe} と書いたメールを
+\module{mod_python} メーリングリストに\email{mod_python-request@modpython.org}
+に送って、 \module{mod_python} メーリングリストに参加しましょう。
+\end{notice}
+
+\section{前提条件\label{inst-prerequisites}}
+
+\begin{itemize}
+\item
+  Python 2.2.1 またはそれ以降のバージョン。それ以前のバージョンでは
+動作しないはずです。
+\item
+  Apache 2.0.40 またはそれ以降のバージョン (Apache 1.3.x, 用には、
+\module{mod_python} version 2.7.x を使ってください)。
+\end{itemize}
+
+\module{mod_python} をコンパイルするには、Apache と Python の両方の include ファイルと、
+Python のライブラリがシステムにインストールされていなければなりません。
+Python と Apache をソースコードからインストールしたなら、必要なものはすべて揃っている
+はずです。しかしパッケージ済みのソフトウェア (Red Hat Linux の RPM や
+Debian、 sunsite にある　Solaris のパッケージなど) を使った場合、
+バイナリしかインストールされず、ソースコードが入っていないかもしれません。
+\module{mod_python} のコンパイルに必要な Apache や Python の include ファイルや
+ライブラリが別に「開発者むけ (development)」 パッケージになっていることも
+よくあります。
+必要なファイルがすべて揃っているかどうか分からなければ、 Python やApache を
+ソースコードからコンパイルするか、自分の使っているシステムのドキュメントを
+よく読んで、開発者むけパッケージを入手する方法を調べてください。
+
+\section{コンパイル\label{inst-compiling}}
+\indexii{compiling}{\module{mod_python}}
+
+モジュールをコンパイルしてApacheにリンクする方法には、静的な方法と DSO 
+(Dynamic Shared Object) の二つがあります。
+
+最近では\dfn{DSO} の方が多く使われており、\module{mod_python} でも推奨する方法です。
+DSOモジュールは共有ライブラリとしてコンパイルされ、サーバから実行時にロード
+されます。
+
+DSO の利点は、Apache 本体を再コンパイルしなくてもインストールでき、必要に
+応じて利用できるところにあります。 Apache DSO メカニズムの詳しい解説は
+\url{http://httpd.apache.org/docs-2.0/dso.html}
+で入手できます。
+
+\emph{現在\module{mod_python} がサポートしているのは DSO だけです。}
+
+静的(\dfn{static}) リンクは古いアプローチです。ほとんどのプラットフォームで
+動的リンクを行えるようになっているので、静的リンクはますます利用されなく
+なっています。静的リンクの大きな欠点はApacheを再コンパイルしなければ
+ならず、それはほとんどの場合では好ましくない選択肢であるということです。
+
+\subsection{./configure\label{inst-configure} を実行する}
+\index{./configure}
+
+\program{./configure} スクリプトを実行すると、実行環境を解析して、
+使っているシステムに特化した専用の Makefile を作成します。
+autoconf が実行する標準の処理以外に、\program{./configure} は以下の
+処理を実行します:
+
+\begin{itemize}
+
+\item
+  \index{apxs}
+  \indexii{./configure}{\longprogramopt{with-apxs}}
+\program{apxs} というプログラムが利用可能かどうかを調べます。
+\program{apxs} は標準の Apache 配布物に入っていて、DSO のコンパイルに
+必要です。\envvar{PATH} や\filenq{/usr/local/apache/bin} の下に
+\program{apxs} が見つからなかった場合、DSO のコンパイルは実行できません。
+
+以下のようにして\longprogramopt{with-apxs} オプションを使うと
+\program{apxs} のありかを手動で指定できます:
+
+  \begin{verbatim}
+    $ ./configure --with-apxs=/usr/local/apache/bin/apxs        
+  \end{verbatim} %$ keep emacs happy
+
+このオプションは指定しておきましょう。
+
+\item
+  \index{libpython.a}
+Python のバージョンを調べ、Pythonバイナリ中にコンパイルされている様々なパラメタ
+から、\program{libpython} がどこにあるかを判定しようとします。デフォルトでは
+\envvar{PATH} 中に見付かった\program{python} を使います。
+
+  \indexii{./configure}{\longprogramopt{with-python}} 
+\envvar{PATH} 内に最初に見付かるPython バイナリが\module{mod_python} の実行に
+ふさわしくないバージョンであるか、あるいは他のバージョンのPythonを使いたい場合
+には、以下の例のように\longprogramopt{with-python} を指定して、別の
+Python の在処を指定できます:
+
+  \begin{verbatim}
+    $ ./configure --with-python=/usr/local/bin/python2.2
+  \end{verbatim} %$ keep emacs happy
+
+\end{itemize}
+
+\subsection{make\label{inst-make} を実行する}
+
+\begin{itemize}
+
+\item
+  %If possible, the \program{./configure} script will default to DSO
+  %compilation, otherwise, it will default to static. To stay with
+  %whatever \program{./configure} decided, simply run
+
+ビルドプロセスを開始するには、
+
+  \begin{verbatim}
+    $ make
+  \end{verbatim}
+  %$ emacs happy
+
+とするだけです。
+
+\end{itemize}
+
+\section{インストール\label{inst-installing}}
+
+\subsection{make install の実行\label{inst-makeinstall}}
+
+\begin{itemize}
+
+\item
+インストール作業のこの部分は root で行う必要があります。
+
+  \begin{verbatim}
+    $ su
+    # make install
+  \end{verbatim}
+  %$ emacs happy
+  
+  \begin{itemize}
+
+  \item
+    %For DSO, this will simply copy the library into your Apache \filenq{libexec}
+上の作業で、Apache のすべてのモジュールが入る\filenq{libexec} ディレクトリに
+ライブラリをコピーします。
+
+    %\item
+    %For static, it will copy some files into your Apache source tree.
+
+  \item
+最後に、Python ライブラリを \filenq{site-packages} にコピーし、コンパイルします。
+
+  \end{itemize} 
+
+  \indexii{make targets}{install_py_lib}
+  %\indexii{make targets}{install_static}
+  \indexii{make targets}{install_dso}
+  \strong{NB:} Pythonライブラリだけ、あるいはDSOだけを選択的にインストール
+したい場合(この場合は常にスーパユーザ権限が必要なわけではありません)、
+\programopt{install_py_lib} や\programopt{install_dso} といった
+\program{make}ターゲットを使えます。
+
+\end{itemize}
+
+\subsection{Apacheの設定\label{inst-apacheconfig}}
+
+\begin{itemize}
+
+\item
+\module{\module{mod_python}} をDSOとしてコンパイルした場合、Apacheの
+設定ファイルに以下の設定行を追加して、モジュールをロードするよう
+指示する必要があります。設定ファイルは通常\filenq{httpd.conf} または
+\filenq{apache.conf} です:
+
+  \begin{verbatim}
+    LoadModule python_module libexec/mod_python.so
+  \end{verbatim}
+
+  \index{mod_python.so}
+\program{mod_python.so} の実際のパスは場合によって異なりますが、
+make install を行うと\program{mod_python.so} がどこに置かれたか、
+そして \code{LoadModule} ディレクトリをどう書けばよいか的確に報告
+してきます。
+
+\end{itemize}
+
+\section{テスト\label{inst-testing}}
+
+\begin{enumerate}
+
+\item
+手元のウェブサイトから見えるディレクトリ、例えば \file{htdocs/test}を作成してください。
+
+\item
+下記のApache ディレクティブを、メインのサーバ設定ファイルか\filenq{.htaccess}
+のどちらかの中に追加します。\filenq{.htaccess} ファイルを使うのなら、
+\code{<Directory>} タグは必要ありません (ディレクトリは \filenq{.htaccess}
+ファイルの置かれている場所になります) また、該当するディレクトリに対して
+少なくとも \code{FileInfo} の指定された\code{AllowOverride} ディレクティブを
+適用しておかねばなりません(デフォルトの設定は\code{None}で、動作しません)。
+  % the above has been verified to be still true for Apache 2.0
+
+  \begin{verbatim}
+    <Directory /some/directory/htdocs/test> 
+        AddHandler mod_python .py
+        PythonHandler mptest 
+        PythonDebug On 
+    </Directory>
+  \end{verbatim}
+
+  (\filenq{/some/directory} は自分の環境に合わせて変更してください。通常は
+  Apache の ServerRoot の値になります。)
+
+\item
+ここまでの作業でメインの設定ファイルに変更を加えているならば、変更内容を有効
+にするためにApacheを再起動する必要があります。
+
+\item
+\filenq{htdocs/test} ディレクトリ下の\filenq{mptest.py} ファイルを編集して、
+以下のような内容にします (ブラウザからカット\& ペーストするときには注意しましょう。
+インデントが正しくなかったり、文法エラーになったりするかもしれません):
+
+  \begin{verbatim}
+    from mod_python import apache
+
+    def handler(req):
+        req.write("Hello World!")
+        return apache.OK 
+  \end{verbatim}
+
+\item
+\filenq{mptest.py} が参照先になるように、ブラウザに URL を指定します;
+\samp{Hello World!} という文字列を読めるはずです。うまく読めなければ、
+次のトラブルシューティングの節を参照してください。
+
+\item
+全てうまく動作しているなら、\ref{tutorial} 節の
+\citetitle[tutorial.html]{チュートリアル} に進みましょう。
+
+\end{enumerate}
+
+\section{トラブルシューティング\label{inst-trouble}}
+
+問題の原因を調べるためにできることがいくつかあります:
+
+\begin{itemize}
+
+\item エラー出力が出ていれば、注意深く調べます。
+
+\item サーバのエラーログファイルを調べます。エラーログファイルには有用な手がかり
+が記録されていることがあります。
+
+\item Apache をコマンドラインから単一プロセスモード (single process mode)
+で起動してみましょう:
+
+  \begin{verbatim}
+    ./httpd -X
+  \end{verbatim}
+
+この起動方法は Apache をバックグラウンドで動作しないようにするので、有用な
+情報を得られることがあります。
+
+\item
+\module{mod_python} メーリングリストで質問してみましょう。質問するときには、
+
+  \begin{itemize}
+
+  \item \module{mod_python} のバージョン。
+  \item オペレーティングシステムのタイプ、名前とバージョン。
+  \item Python のバージョンと、コンパイル時に特別に指定したオプションがあればそれも。
+  \item Apache のバージョン。
+  \item Apache 設定ファイルや \filenq{.htaccess} 中の関連する部分。
+  \item Python コードの関連する部分。
+
+  \end{itemize}
+
+といったスペックを載せるようにしてください。
+
+\end{itemize}

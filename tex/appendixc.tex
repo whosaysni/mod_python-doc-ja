@@ -1,0 +1,32 @@
+\chapter{バージョン 2.x からの変更\label{app-changes}}
+
+\indexii{Changes from}{version 2.x}
+
+\begin{itemize}
+
+\item
+\module{mod_python} 3.0 はもはや Apache 1.3 では動作せず、
+Apache 2.0 だけをサポートするようになりました。
+\item
+Python 2.2.1 よりも前のバージョンでは動作しなくなりました。
+\item 
+Apache フィルタをサポートするようになりました。
+\item 
+Apache 接続ハンドラをサポートするようになりました。
+\item 
+リクエストオブジェクトがinternal_redirect() をサポートする
+ようになりました。
+\item
+接続オブジェクトに read(), readline() および write() が追加されました。
+\item
+サーバオブジェクトに get_config() が追加されました。
+\item
+\index{Httpdapy} \index{httpdapi}
+httpdapi ハンドラが撤廃されました。
+\item
+\index{ZPublisher}
+Zpublisher ハンドラが撤廃されました。
+\item
+ユーザ名はreq.connection.user ではなくreq.user になりました。
+
+\end{itemize}

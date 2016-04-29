@@ -1,0 +1,697 @@
+\chapter{Apache設定ディレクティブ\label{directives}}
+
+\section{Request Handlers\label{dir-handlers}}
+
+\subsection{Python*Handlerディレクティブ構文\label{dir-handlers-syn}}
+\index{Python*Handler構文}
+
+リクエストハンドラのディレクティブは全て次のような構文になります:
+
+\code{Python*Handler \emph{handler [handler ...] [ | .ext [.ext ...] ] } }
+
+\var{handler} は呼び出し可能オブジェクトで、単一の引数、リクエストオブジェクトを
+とります。\var{.ext} はファイルの拡張子です。
+
+一つの行には複数のハンドラを指定できます。この場合、各ハンドラは左から右へ順に
+呼ばれてゆきます。同じハンドラの設定を複数回指定でき、これも同じ結果を返します;
+すなわち、全てのハンドラが最初から最後まで順次実行されてゆきます。
+ハンドラ列のうちいずれかが\code{apache.OK}以外の値を返すと、それ以降の
+ハンドラの実行は中止されます。
+
+ハンドラリストの後ろには、\code{|}を続け、その後ろにファイル拡張子を
+複数個指定できます。この指定を行うと、該当するファイル拡張子に対してのみ
+ハンドラが実行されるよう制限します。この機能は trans フェイズ後に
+実行されるハンドラにのみ適用されます。
+
+\emph{handler} は次のような文法になります:
+
+\code{module[::object]}
+
+\var{module} は完全なモジュール名 (パッケージ名のドット表記も利用できます)
+で、オプションの\var{object} はモジュール内のオブジェクト名です。
+
+オブジェクトの指定にもドット(.)を含められます。この場合、左から右に名前解決
+を行ってゆきます。解決処理中に\code{<class>}型のオブジェクトに遭遇すると、
+\module{mod_python}はリクエストオブジェクトを引数にしてクラスの
+インスタンスを生成しようとします。
+
+オブジェクト名を指定しない場合、ハンドラのディレクティブ名をすべて小文字にし、
+先頭の\samp{python} を除いた名前をデフォルトとして使います。
+例えば、\samp{PythonAuthenHandler} に対するデフォルトのオブジェクト名は
+\samp{authenhandler} になります。
+
+例:
+
+\begin{verbatim}
+  PythonAuthzHandler mypackage.mymodule::checkallowed
+\end{verbatim}
+
+ハンドラの詳細については「ハンドラの概要」を参照してください。
+
+補足: \samp{::} を使っているのはパフォーマンス上の理由からです。
+Python は、モジュール内のオブジェクトを使用する場合、まず最初に
+モジュールを import しておく必要があります。区切りを単に\samp{.}
+にしてしまうと、各語がパッケージ、モジュール、クラス等のいずれかを
+順に決めるプロセスがかなり複雑になってしまいます。
+そこで、(Pythonらしくない)\samp{::}を使うことで、モジュールを指定する
+部分がどこで終わり、モジュール内のオブジェクトの指定がどこから始まるのかを
+判定するためにかかる時間を \module{mod_python} から省き、パフォーマンスを
+十分に稼いでいるのです。
+
+\subsection{PythonPostReadRequestHandler\label{dir-handlers-prrh}}
+\index{PythonPostReadRequestHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このハンドラは、リクエストの内容を読み込み終わった後で、かつ他のフェイズの処理が
+行われるよりも前に呼び出されます。このハンドラは入力ヘッダフィールドに基づいて
+何らかの判定を行う場合に便利です。
+
+\begin{notice}
+このリクエスト処理フェイズでは、URI はまだパス名に変換されていません。
+従って、\code{<Directory>}や\code{<Location>}、\code{<File>} ディレクティブ内や
+\file{.htaccess}ファイルの中で指定しても Apache はこのディレクティブを実行できません。
+このディレクティブを置けるのはメインの設定ファイルのみで、
+そのコードはメインのインタプリタが実行します。
+また、このフェイズはリクエストのコンテキストタイプ (例えば、要求が Python プログラムを
+指しているのか、それとも gif ファイルなのか) を特定するよりも前に発生するので、
+このハンドラで指定したPythonのルーチンは、このサーバに対する
+\emph{あらゆる} (Pythonプログラム以外も含む) リクエストに対して
+呼び出されてしまいます。これはパフォーマンスが優先課題の場合には熟慮すべき問題です。
+\end{notice}
+
+\indexii{phase}{order} 以下のハンドラは、Apache が処理する各フェイズの順に合わせて
+ドキュメント化されています。
+
+\subsection{PythonTransHandler\label{dir-handlers-th}}
+\index{PythonTransHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このハンドラは、サーバのデフォルトの規則 (Alias ディレクティブなど) に先だって
+URI から実際のファイル名への変換を行う機会を与えるために呼び出されます。
+
+\begin{notice}
+このリクエスト処理フェイズでは、URI はまだパス名に変換されていません。
+従って、\code{<Directory>}や\code{<Location>}、\code{<File>} ディレクティブ内や
+\file{.htaccess}ファイルの中で指定しても Apache はこのディレクティブを実行できません。
+このディレクティブを置けるのはメインの設定ファイルのみで、
+そのコードはメインのインタプリタが実行します。
+\end{notice}
+
+\subsection{PythonHeaderParserHandler\label{dir-handlers-hph}}
+\index{PythonHeaderParserHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このハンドラは、リクエストの処理手順の早期でリクエストヘッダを調べ、
+何らかの適切な動作を行う機会を与えるために呼び出されます。
+
+\subsection{PythonInitHandler\label{dir-handlers-pih}}
+\index{PythonInitHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+リクエスト処理フェイズの中で最初に呼び出されるハンドラで、
+\file{.htaccess}とディレクトリの内外で使用できます。
+
+このハンドラは、実際には異なる2つのハンドラの別名です。
+メイン設定ファイル中でディレクトリタグの外に設定すると
+\code{PostReadRequestHandler}の別名になります。
+また、(\code{PostReadRequestHandler}を置けないような)
+ディレクトリタグの内側に設定したときには、
+\code{PythonHeaderParserHandler}の別名になります。
+
+\emph{(このアイデアはmod_perlをもとにしています)}
+
+\subsection{PythonAccessHandler\label{dir-handlers-ach}}
+\index{PythonAccessHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このルーチンは、リクエストされたリソースに対し、\module{mod_python} モジュール
+特有の制限をかけているかどうかを調べるために呼ばれます。
+
+例えば、このハンドラを使って IP アドレスによる制限を行えます。
+アクセス不許可を示したければ、このハンドラで\code{HTTP_FORBIDDEN}などを
+返します。
+
+\subsection{PythonAuthenHandler\label{dir-handlers-auh}}
+\index{PythonAuthenHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このルーチンはリクエストと同時に送られてきた認証情報を
+(ユーザがデータベースの中にあるかどうか、また [暗号化された]
+パスワードがデータベース上のパスワードと一致しているかを調べるなどして)
+チェックするときに呼ばれます。
+
+ユーザ名を得るには、\code{req.user}を使います。また、
+ユーザが入力したパスワードを得るには\code{req.get_basic_auth_pw()}関数を使います。
+
+\code{apache.OK}を返すことで、認証の成功を意味します。
+\code{apache.HTTP_UNAUTHORIZED}を返すと大抵のブラウザでは
+認証(パスワード)ダイアログが再度表示されます。
+\code{apache.HTTP_FORBIDDEN}を返すとエラーを表示し、
+認証(パスワード)ダイアログは表示されません。
+認証は成功しているものの、ユーザが特定のURLにアクセスを許されていない場合には
+\code{HTTP_FORBIDDEN}を使ってください。
+
+認証ハンドラの例は以下のようになります:
+
+\begin{verbatim}
+def authenhandler(req):
+
+    pw = req.get_basic_auth_pw()
+    user = req.user
+    if user == "spam" and pw == "eggs":
+        return apache.OK
+    else:
+        return apache.HTTP_UNAUTHORIZED
+\end{verbatim}
+
+\begin{notice}
+\code{req.get_basic_auth_pw()}は\code{req.user}の値を使う前に
+呼び出さねばなりません。Apacheは\code{req.get_basic_auth_pw()}を呼び出すまで
+認証情報のデコードを試みません。
+\end{notice}
+
+\subsection{PythonAuthzHandler\label{dir-handlers-auzh}}
+\index{PythonAuthzHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このハンドラは \samp{AuthenHandler} の後に実行されます。
+ユーザが特定のリソースにアクセスできるかを調べる為のハンドラです。
+とはいえ、この処理はしばしば \samp{AuthenHandler} そのものの中で
+行われます。
+
+\subsection{PythonTypeHandler\label{dir-handlers-tph}}
+\index{PythonTypeHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このルーチンは、(\code{r->content_type} から判る) Content-type、言語などといった
+様々なドキュメントタイプ情報を決定したり設定したりするために呼び出されます。
+
+\subsection{PythonFixupHandler\label{dir-handlers-fuh}}
+\index{PythonFixupHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このルーチンはヘッダフィールド等の固定を\module{mod_python} モジュール特有の
+方法で実行するために呼び出されます。このハンドラはコンテンツハンドラを呼び出す
+直前に起動されます。
+
+\subsection{PythonHandler\label{dir-handlers-ph}}
+\index{PythonHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+メインのリクエストハンドラです。
+多くのアプリケーションではこのハンドラだけを指定することになるでしょう。
+
+\subsection{PythonLogHandler\label{dir-handlers-plh}}
+\index{PythonLogHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+このルーチンは\module{mod_python} 特有のログ処理を実現するために呼び出されます。
+
+\subsection{PythonCleanupHandler\label{dir-handlers-pch}}
+\index{PythonCleanupHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+\emph{Python*Handler Syntax}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+これは一番最後のハンドラで、
+Apacheがリクエストオブジェクトを捨てる直前に呼ばれます。
+
+他のハンドラと違い、戻り値は無視されます。
+エラーはエラーログに書きこまれますが、\samp{PythonDebug} が\samp{On}
+になっていてもクライアントには何も送信されません。
+
+このハンドラは\code{rec.add_handler()}関数の引数には使えません。
+動的な後処理 (cleanup)を登録するには、\code{req.register_cleanup()}を使います。
+
+一度後処理が始まると、それ以上後処理は登録できません。
+そのため、\code{req.register_cleanup()}はこのハンドラ内では効果がありません。
+
+このディレクティブで登録したハンドラは、\code{req.register_cleanup()}で
+登録した後処理ハンドラよりも\emph{後}に実行されます。
+
+\section{フィルタ\label{dir-filter}}
+
+\subsection{PythonInputFilter\label{dir-filter-if}}
+\index{PythonInputFilter}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonInputFilter handler name\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+\var{name}という名前で入力フィルタ\var{handler}を登録します。
+\var{Handler}はモジュール名で、
+\code{::}のあとに続けて呼出し可能オブジェクト名をつけられます。
+呼出し可能オブジェクトの名前を省略した場合、
+デフォルトで\samp{inputfilter}になります。
+慣例で\var{Name}に登録するフィルタ名は大抵は全て大文字にします。
+
+フィルタを有効にするには\code{AddInputFilter}を設定します。
+
+\subsection{PythonOutputFilter\label{dir-filter-of}}
+\index{PythonOutputFilter}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonOutputFilter handler name\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+\var{name}という名前で出力フィルタ\var{handler}を登録します。
+\var{Handler}はモジュール名で、
+\code{::}のあとに続けて呼出し可能オブジェクト名をつけられます。
+呼出し可能オブジェクトの名前を省略した場合、
+デフォルトで\samp{outputfilter}になります。
+慣例で\var{Name}に登録するフィルタ名は大抵は全て大文字にします。
+
+フィルタを有効にするには\code{AddOutputFilter}を設定します。
+
+\section{接続ハンドラ\label{dir-conn}}
+
+\subsection{PythonConnectionHandler\label{dir-conn-ch}}
+\index{PythonConnectionHandler}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonConnectionHandler handler\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+接続を接続ハンドラ\var{handler} で処理するよう指定します。
+\var{Handler} には単一の引数、接続オブジェクトが渡されます。
+
+\var{Handler}はモジュール名で、
+\code{::}のあとに続けて呼出し可能オブジェクト名をつけられます。
+呼出し可能オブジェクトの名前を省略した場合、
+デフォルトで\samp{connectionhandler}になります。
+
+\section{その他のディレクティブ\label{dir-other}}
+
+\subsection{PythonEnablePdb\label{dir-other-epd}}
+\index{PythonEnablePdb}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonEnablePdb \{On, Off\} \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Default]{Default:}
+PythonEnablePdb Off\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+\samp{On} の場合、\module{mod_python} は\code{pdb.runcall()} 関数を使って
+Pythonデバッガ\module{pdb}の下でハンドラを実行します。
+
+\module{pdb} は対話的なツールなので、このディレクティブを使う場合には
+\code{-DONE_PROCESS} オプション付きで httpd を起動してください。
+ハンドラコードに到達するとすぐに pdb のプロンプトが表示され、コードを
+ステップごとに進めて変数を調べられるはずです。
+
+\subsection{PythonDebug\label{dir-other-pd}}
+\index{PythonDebug}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonDebug \{On, Off\} \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Default]{Default:}
+PythonDebug Off\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+通常、捕捉されなかった Python のエラーによるトレースバック出力は
+ログに送られます。
+PythonDebugをOnに設定すると、\exception{IOError}が出るまでは
+トレースバックの出力は (ログの他に) クライアントにも送信されます。
+ただし、出力時の\exception{IOError} の場合にはエラーログだけに
+送信されます。
+
+このディレクティブは開発時に非常に有用です。
+しかし、このディレクティブを使うと、意に反した、場合によっては重大なセキュリティ上の
+情報をクライアントに暴露してしまう恐れがあるので、実運用では使わないよう勧めます。
+
+\subsection{PythonImport\label{dir-other-pimp}}
+\index{PythonImport}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonImport \emph{module} \emph{interpreter_name}\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+\samp{interpreter_name} に指定した名前を持つインタプリタの下で Python
+モジュール\samp{module} を import するようサーバに指示します。
+例えばデータベース接続の初期化など、時間がかかり、リクエスト処理時に実行するのが
+望ましくない初期化タスクに便利です。
+
+import は子プロセスの初期化時に起こるので、実際には起動した子プロセスあたり
+一度だけモジュールの import が起こります。
+
+\begin{notice}
+import が起きるとき、設定は完全に読み込まれてはいないため、
+PythonInterpreterを含む他の全てのディレクティブはこのディレクティブで
+import したモジュールに影響を及ぼしません。
+この制限のため、インタプリタ名を明示的に指定しておき、このディレクティブの
+操作に依存する後続のリクエストが実行されるインタプリタの名前と一致させて
+おかねばならないのです。
+実行しているインタプリタの名前が判らないのなら、リクエストオブジェクトの
+\member{interpreter}メンバを調べてください。
+\end{notice}
+
+多重インタプリタ(Multiple Interpreters)を参照して下さい。
+
+\subsection{PythonInterpPerDirectory\label{dir-other-ipd}}
+\index{PythonInterpPerDirectory}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonInterpPerDirectory \{On, Off\} \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Default]{Default:}
+PythonInterpPerDirectory Off\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+インタプリタの名前を、サーバ名ではなくリクエスト中のファイルのディレクトリ名
+(\code{req.filename}) からつけるよう\module{mod_python} に指示します。
+これは、デフォルトポリシの場合には、たとえ違うディレクトリ上であっても
+同じ仮想サーバ上では同じサブリンタプリタでスクリプトを実行するのに対し、
+異なるディレクトリにあるスクリプトは互いに別個のサブインタプリタで実行
+されることを意味します。
+
+例えば、\file{/directory/subdirectory}があると仮定します。
+\file{/directory}にはPythonHandlerディレクティブを含んだ
+.htaccessファイルがあり、
+\file{/directory/subdirectory}には.htaccessがないとします。
+\file{/directory} の下のスクリプトと
+\file{/directory/subdirectory}の下のスクリプトは、同じ仮想サーバを介して
+アクセスされていれば、同じインタプリタ下で実行されます。
+PythonInterpPerDirectoryが有効な場合は
+各ディレクトリ毎に別個の二つのインタプリタになります。
+
+
+\begin{notice}
+URIの変換より前の早い段階のリクエスト処理フェイズ
+(PostReadRequestHandlerやTransHandler) では
+  URIがまだ変換されていないため、パスがまだ決まっていません。
+  その間はPythonInterpPerDirectoryがOnであったとしても
+  メインのインタプリタによって実行されます。
+  この動作は期待しているものとは異るかもしれません。
+が、この問題を会費する方法は残念ながらありません。
+\end{notice}
+
+\begin{seealso}
+  \seetitle[pyapi-interps.html]{\ref{pyapi-interps} 節、複数のインタプリタ}
+           {詳しい情報です}
+\end{seealso}
+
+\subsection{PythonInterpPerDirective\label{dir-other-ipdv}}
+\index{PythonPythonInterpPerDirective}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonInterpPerDirective \{On, Off\} \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Default]{Default:}
+PythonInterpPerDirective Off\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+有効な Python*Handler ディレクティブのあるディレクトリの名前を使って
+サブインタプリタの名前をつけるよう \module{mod_python} に指示します。
+
+例えば、\file{/directory/subdirectory}があると仮定します。
+\file{/directory}にはPythonHandlerディレクティブの入った
+.htaccessファイルがあり、
+\file{/directory/subdirectory}には別の PythonHandler の入った
+.htaccessファイルがあるとします。
+デフォルトでは、同じ仮想サーバを介してアクセスされていれば、
+\file{/directory} の下のスクリプトと
+\file{/directory/subdirectory}の下のスクリプトは同じインタプリタ下で
+実行されます。PythonInterpPerDirectiveが有効な場合、
+各ディレクティブ毎に別個の二つのインタプリタになります。
+
+\begin{seealso}
+  \seetitle[pyapi-interps.html]{\ref{pyapi-interps} 節、複数のインタプリタ}
+           {詳しい情報です}
+\end{seealso}
+
+\subsection{PythonInterpreter\label{dir-other-pi}}
+\index{PythonInterpreter}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonInterpreter name \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+デフォルトの動作や、
+\citetitle[dir-other-ipd.html]{\code{PythonInterpPerDirectory}}や
+\citetitle[dir-other-ipdv.html]{\code{PythonInterpPerDirective}}
+ディレクティブで指定した挙動を上書きする形で、インタプリタの名前を強制的に
+\emph{name}にするよう\module{mod_python} に指示します。
+
+このディレクティブを使うと、通常は別個のサブインタプリタ下で行われるスクリプト
+の実行を同じサブインタプリタ下で行えます。DocumentRoot の下で使うと、
+サーバ全体で一つのサブインタプリタを使うようになります。
+
+\begin{seealso}
+  \seetitle[pyapi-interps.html]{\ref{pyapi-interps} 節、複数のインタプリタ}
+           {詳しい情報です}
+\end{seealso}
+
+\subsection{PythonHandlerModule\label{dir-other-phm}}
+\index{PythonHandlerModule}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonHandlerModule module \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+PythonHandlerModuleを使うと、複数のPython*Handlerディレクティブを代替できます。
+このハンドラでモジュールを指定すると、そのモジュールにデフォルトのハンドラ関数名
+に一致する関数を探しだし、あればその関数を実行します。
+
+例えばつぎのような設定だったとした場合:
+\begin{verbatim}
+  PythonAutenHandler mymodule
+  PythonHandler mymodule
+  PythonLogHandler mymodule
+\end{verbatim}
+
+単純にこのように書けます。
+\begin{verbatim}
+  PythonHandlerModule mymodule
+\end{verbatim}
+
+\subsection{PythonAutoReload\label{dir-other-par}}
+\index{PythonAutoReload}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonAutoReload \{On, Off\} \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Default]{Default:}
+PythonAutoReload On\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+\samp{Off} にセットすると、モジュールファイルの更新日時を調べないよう
+\module{mod_python} に指示します。
+
+デフォルトでは、\module{mod_python} はファイルのタイムタンプをチェックし、
+モジュールファイルの更新時刻が以前にインポート、またはリロードしたときよりも
+新しければそのモジュールをリロードします。こうしてモジュールは自動的に再 import
+されるため、モジュールを更新するたびにサーバーを再起動させる必要が無くなります。
+
+自動リロードを無効にすると、いくらか処理時間を節約でき、わずかなパフォーマンス向上を
+もたらすため、モジュールの変更が起こり得ない実運用での環境では便利です。
+
+\subsection{PythonOptimize\label{dir-other-pomz}}
+\index{PythonOptimize}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonOptimize \{On, Off\} \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Default]{Default:}
+PythonOptimize Off\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+Pythonの最適化を有効にします。Pythonの\programopt{-O}オプションと同じです。
+
+\subsection{PythonOption\label{dir-other-po}}
+\index{PythonOption}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonOption key value \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+キーと値のペアをテーブルに割当てます。
+これは、\code{req.get_options()}関数で参照できます。
+設定ファイル(\file{httpd.conf}や\file{.htaccess}など)とPythonプログラムの間で
+情報をやりとりするのに役立ちます。
+
+\subsection{PythonPath\label{dir-other-pp}}
+\index{PythonPath}
+
+\strong{\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Syntax]{文法:}}
+PythonPath \emph{path} \\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Context]{コンテキスト:}
+サーバ設定、バーチャルホスト、ディレクトリ、 htaccess\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Override]{オーバライド:}
+not None\\
+\citetitle[http://httpd.apache.org/docs-2.0/mod/directive-dict.html#Module]{モジュール:}
+mod_python.c
+
+PythonPathディレクティブはPythonPathをセットします。
+pathは次のように、Pythonリストの表記法を使い記述します。
+
+\begin{verbatim}
+  PythonPath "['/usr/local/lib/python2.0', '/usr/local/lib/site_python', '/some/other/place']"
+\end{verbatim}
+
+このディレクティブで設定したpathは既存のパスに追加されるのではなく、新しく置き換わります。
+とはいえ、path の実際の値は \samp{eval} で評価されるので、path にディレクトリを追加
+したければ、以下のように指定できます:
+
+\begin{verbatim}
+  PythonPath "sys.path+['/mydir']"
+\end{verbatim}
+
+\module{mod_python}はPythonPathに係わる eval の実行回数を最低限にしようと
+します。というのも、 eval は低速で、特に毎回ヒットするたびに解析されるような
+\file{.htaccess} ファイル内で指定した場合には強烈な悪影響を及ぼすことが
+あるからです。
+\module{mod_python}はPythonPathディレクティブの引数(評価する前の状態)を覚えておき、
+値を評価する前に覚えておいた値と比較して、値が同じならば何も行いません。
+このため、コード内でpythonpath を変更している場合には、パスの内容を何らかの
+値に戻すための手段をディレクティブに頼ってはなりません。　
+
+\begin{notice}
+  このディレクティブはセキュリティ処置として使うべきではありません。
+  Pythonパスはスクリプトから簡単に操作できるためです。
+\end{notice}
+

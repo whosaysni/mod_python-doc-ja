@@ -1,0 +1,427 @@
+\chapter{チュートリアル\label{tutorial}}
+
+\begin{flushright}
+  \emph{で、どうやったらちゃんと動くんですか？}
+\end{flushright}
+
+\emph{この章は、\module{mod_python} をインストールした後で \module{mod_python} 
+プログラミングを始めてみる人のためのガイドです。インストールマニュアル
+では \textbf{ありません}!}
+
+\emph{この章を読んだ後には、\ref{pythonapi}, 
+  \citetitle[pythonapi.html]{Python API} 以降の節 
+  (すくなくとも冒頭の部分) も読んでおくよう強く勧めます。}
+
+\section{publisher ハンドラを使ってみる\label{tut-pub}}
+
+この節では、\module{mod_python} の詳細に深くつっこまなくても使い始められる
+publisher ハンドラの概要について手短に説明します。
+\module{mod_python} ハンドラの動作する仕組みや、ハンドラとは一体何なのかについては、
+チュートリアル以後の節で詳しく説明します。
+
+\code{publisher} ハンドラは \module{mod_python} の標準ハンドラの一つとして提供されています。
+このハンドラを使えるようにするには、設定ファイルに以下のように書く必要があります:
+
+\begin{verbatim}
+  AddHandler mod_python .py
+  PythonHandler mod_python.publisher
+  PythonDebug On
+\end{verbatim}
+
+さて、下記はフィードバックを送信する簡単なフォームの例です。このフォームは
+名前、電子メールアドレス、そしてコメントをユーザに入力してもらい、その情報を
+元にウェブ管理者宛の電子メールを生成します。
+このシンプルなアプリケーションは、
+\filenq{form.html} - データを集めるためのフォーム、そして
+\filenq{form.py} - フォームのアクション時のターゲット、という
+二つのファイルからなります:
+
+フォームの HTML ソースを以下に示します:
+
+\begin{verbatim}
+  <html>
+      フィードバックを入力して送ってください:
+  <p>                           
+  <form action="form.py/email" method="POST">
+
+      Name:    <input type="text" name="name"><br>
+      Email:   <input type="text" name="email"><br>
+      Comment: <textarea name="comment" rows=4 cols=20></textarea><br>
+      <input type="submit">
+
+  </form>
+  </html>  
+\end{verbatim}
+
+\code{<form>} タグの\code{action} 要素が \code{form.py/email} を
+指していることに注意してください。次に以下のような内容で \filenq{form.py} 
+という名前のファイルを作成しましょう:
+
+\begin{verbatim}
+import smtplib
+
+WEBMASTER = "webmaster"   # webmaster e-mail
+SMTP_SERVER = "localhost" # your SMTP server
+
+def email(req, name, email, comment):
+
+    # ユーザが全ての情報を入力したか確かめる
+    if not (name and email and comment):
+        return "必要な情報が入力されていません。戻って正しく入力してください。"
+
+    # メッセージテキストを作成する
+    msg = """\
+From: %s                                                                                                                                           
+Subject: feedback
+To: %s
+
+コメントです:
+
+%s
+
+それでは。
+
+%s
+
+""" % (email, WEBMASTER, comment, name)
+
+    # 送信する
+    conn = smtplib.SMTP(SMTP_SERVER)
+    conn.sendmail(email, [WEBMASTER], msg)
+    conn.quit()
+
+    # ユーザにフィードバックの内容を返す
+    s = """\
+<html>
+
+%s さん<br>
+
+コメントありがとうございました。すぐにお返事いたします。
+
+</html>""" % name
+
+    return s
+\end{verbatim}
+
+ユーザが「送信 (Submit)」ボタンを♂と、publisher ハンドラは
+フォームの各フィールドの情報をキーワード引数にして\module{form}
+モジュール内の関数\function{email} を呼び出します。
+また、request オブジェクトも \code{req} 引数として渡します。
+
+必要がなければ、\code{req} すら関数の引数にして渡す必要はありません。
+publisher ハンドラは賢くて、関数が受け取れる引数だけを渡します。
+
+データは関数の戻り値を介してブラウザに戻されます。
+
+publisher ハンドラは、 \module{mod_python} を使ったプログラム作成を大幅に単純化
+しながらも、request オブジェクトにアクセスできるために\module{mod_python} の
+全てのパワーを引き出せるようになっています。 publisher ハンドラでは、
+「ネイティブの」\module{mod_python} ハンドラを使ってできる全てのこと、例えば
+\code{req.headers_out} を介したカスタムヘッダを作成したり、
+\exception{apache.SERVER_ERROR} 例外を送出してエラーを返したり、
+\method{req.write()} や \method{req.read()} を使ってクライアントとの
+間で直接データを読み書きしたり、などといった処理を行えます。
+
+publisher ハンドラの詳しい情報は
+\ref{hand-pub}\citetitle[hand-pub.html]{publisher ハンドラ}
+を参照してください。
+
+\section{Apache リクエスト処理の概要\label{tut-overview}}
+
+\module{mod_python} の機能について深く調べてみたいのなら、ハンドラ (handler) とは
+何かを知っておく必要があります。
+
+Apache はリクエストを複数の \dfn{フェイズ} (\dfn{phase}) で処理します。
+例えば、最初のフェイズはユーザを認証し、次のフェイズではユーザが特定のファイル
+を閲覧する許可を有しているか調べ、続いて (次のフェイズで) ファイルを読み出して
+クライアントに送信する、といった具合です。典型的な静的ファイルに対する要求
+には、(1) 要求された URI を実際のファイルの場所に変換する、 (2) ファイルを
+読み出してクライアントに送信する、 (3) リクエストをログに記録する、という
+三つのフェイズがあります。厳密にどのフェイズがどのように処理されるかは、
+設定によって大きく変わります。
+
+\dfn{ハンドラ} (\dfn{handler}) は、一つのフェイズを処理する関数です。
+ある特定のフェイズの処理に対して、複数のハンドラが利用できることもあり、
+この場合各ハンドラは Apache から順番に呼び出されます。各フェイズに対して、
+Apacheのデフォルトのハンドラが呼び出され(デフォルトハンドラのほとんどは
+デフォルトで基本的な機能しかしないか、あるいは全く何も行いません)、
+続いて\module{mod_python} のような Apache モジュールで提供されている追加の
+ハンドラが呼び出されます。
+
+\module{mod_python} では、提供可能な全てのApacheハンドラを提供しています。
+デフォルトの\module{mod_python} ハンドラは設定ディレクティブで特に設定
+しない限りなにも行いません。\module{mod_python} の設定ディレクティブは
+(\code{PythonAuthenHandler}のように)\samp{Python} で始まって
+\samp{Handler} で終わり、あるフェーズをあるPython上の機能に
+関連づけています。従って、\module{mod_python} の主要な機能は Apache ハンドラと
+みなさんのような開発者が書いたPython 関数との間を取り持つ役目という
+ことになります。
+
+もっともよく使われているハンドラは\code{PythonHandler} です。
+このハンドラでは、実際のコンテンツを提供する、いわゆるリクエストのフェイズを
+処理します。このハンドラには特定の機能を表す名前がないため、しばしば
+\dfn{汎用}(\dfn{generic}) ハンドラと呼ばれます。
+このハンドラに相当するデフォルトの Apache の動作は、ファイルの読み込みと
+クライアントへの送信です。自作のほとんどのアプリケーションではこのハンドラを
+オーバライドすることになるでしょう。
+利用できるハンドラ一覧を見るには、\ref{directives}節、
+\citetitle[directives.html]{Apache ディレクティブ} を参照してください。
+
+\section{mod\_python は一体何をやっているのか\label{tut-what-it-do}}
+
+仮に、以下のように設定しているとしましょう:
+\begin{verbatim}
+  <Directory /mywebdir>
+      AddHandler mod_python .py
+      PythonHandler myscript
+      PythonDebug On
+  </Directory>
+\end{verbatim}
+
+\strong{注意:} \filenq{/mywebdir} は物理的な絶対パスです。
+
+さらに、以下のような内容の Python プログラムが \file{/mywebdir/myscript.py}
+にあるとします (Windows ユーザは、ファイル名のスラッシュをバックスラッシュに
+置き換えてください):
+
+\begin{verbatim}
+from mod_python import apache
+
+def handler(req):
+
+    req.content_type = "text/plain"
+    req.write("Hello World!")
+
+    return apache.OK
+\end{verbatim}    
+
+すると，こんな処理が行われます: まず\code{AddHandler} ディレクティブが
+Apache に\file{/mywebdir} またはそれ以下のディレクトリにある
+\file{.py} で終わる全てのファイルに対する全てのリクエストを \module{mod_python}
+で処理するよう教えます。\samp{PythonHandler myscript} ディレクティブは、
+\module{mod_python} が generic ハンドラでの処理を\code{myscript} スクリプトで
+行うように指示します。\samp{PythonDebug On} でぃれくてぃぶは、
+Python のエラーが発生した場合にエラー出力を (ログへの記録に加えて) 
+クライアントに送信するよう \module{mod_python} に指示します。開発中には、
+この機能はとても便利です。
+
+さて、リクエストが送られてくると、Apache は \module{mod_python} のハンドラを
+呼び出してリクエスト処理フェイズを開始します。\module{mod_python} ハンドラは
+設定中にリクエストの内容に該当するハンドラを指定しているディレクティブがないか
+探します(\module{mod_python} はディスパッチャのように働くことを思い出してください)。
+ここで示した例題では、\module{mod_python} に generic ハンドラ以外のハンドラに
+ついて何もしていません。 generic ハンドラの番になると、\module{mod_python} は
+\samp{PythonHandler myscript} ディレクティブがあることに気づき、
+以下のような処理を行います:
+
+\begin{enumerate}
+
+\item
+\code{PythonHandler} ディレクティブを指定しているディレクトリが
+\code{sys.path} に追加されていなければ追加します。
+
+\item
+\code{myscript} という名前のモジュールを import しようと試みます。
+(\code{myscript} が\code{PythonHandler} ディレクティブの指定されている
+ディレクトリのサブディレクトリにある場合、import はうまくいかないので注意
+してください。これはサブディレクトリが \code{sys.path} に入っていないからです。
+\samp{PythonHandler subdir.myscript} のようなパッケージ表記を使えば
+この問題を回避できます。)
+
+\item 
+\code{myscript} 中に関数\code{handler} がないか探します。
+
+\item
+リクエスト (request) オブジェクトを渡して\code{handler} を呼び出します
+(request オブジェクトについては後で詳しく述べます)。
+
+\item
+この時点で、処理はスクリプトの中に移ります:
+
+  \begin{itemize}
+
+  \item
+    \begin{verbatim}
+from mod_python import apache
+    \end{verbatim}
+この行で、Apache へのインタフェースを提供している\module{apache} モジュールを
+import します。数少ない例外を除き、\module{mod_python} のプログラムには
+常にこの行があるはずです。
+
+  \item
+    \begin{verbatim}
+def handler(req):
+    \end{verbatim}
+
+\dfn{ハンドラ} (\dfn{handler}) 関数の宣言です。\module{mod_python} は
+ディレクティブ名を小文字表記にして先頭の \samp{python} を取り除いた名前を
+ハンドラ名に使うため、この関数は \samp{handler} という名前になるのです。
+ハンドラ関数に別の任意の名前を使って、\samp{::}　でディレクティブに明示的に
+指定しても構いません。例えば、ハンドラが\samp{spam} という関数だったなら、
+ディレクティブは\samp{PythonHandler myscript::spam} になったでしょう。
+
+ハンドラは引数を一つ - request オブジェクト - を取らねばなりません。
+request オブジェクトとは、例えばクライアントの IP アドレス、ヘッダ、 URI 
+といった、あるリクエストに関する全ての情報の入ったオブジェクトです。
+クライアントへの返信も request オブジェクトを介して行います。従って、
+「応答オブジェクト (response object)」はありません。
+
+  \item
+    \begin{verbatim}
+req.content_type = "text/plain"
+    \end{verbatim}
+
+この行では、コンテントタイプを \samp{text/plain}に設定しています。
+通常、デフォルトでは\samp{text/html}を使いますが、ここで定義するハンドラ
+が生成するのはHTMLではないので\samp{text/plain}の方が適切です。
+
+  \item
+    \begin{verbatim}
+req.write("Hello World!")
+    \end{verbatim}
+
+文字列\samp{Hello World!} をクライアントに書きます(説明するまでもありませんね？)
+
+  \item
+    \begin{verbatim}
+return apache.OK
+    \end{verbatim}
+
+全ての処理がうまくいき、リクエストが処理されたことをApacheに教えます。
+処理がうまく行かなかった場合には、この行で
+\constant{apache.HTTP_INTERNAL_SERVER_ERROR} や
+\constant{apache.HTTP_FORBIDDEN} を返すことになります。
+処理がうまく行かなかった場合、 Apache はエラーをログに記録して、
+クライアント向けのエラーメッセージを生成します。
+  \end{itemize}
+\end{enumerate}
+
+\strong{熟慮すべきこと:} 注意深く読んでいれば、上のテキストで、
+ハンドラコードを実行するために URL で \filenq{myscript.py} を参照する
+必要があると書いていないことに気づいたでしょう。必要なのは、\filenq{.py}
+URL がファイルを参照しているということだけです。
+実際、ファイルの名前自体は問題ではなく、URL が指し示しているファイルが実在
+しなくてもかまわないのです。
+従って、上の設定の下では、\samp{http://myserver/mywebdir/myscript.py} も
+\samp{http://myserver/mywebdir/montypython.py} も同じ結果になるのです。
+ここで理解しておかねばならない要点は、ハンドラは特定のタイプのファイルを処理する
+際の動作を指定しているのであって、個々のファイルの動作を個別に指定しているのでは
+ないということです。
+
+\emph{ここまで読み進んだ時点で上の文章が理解できなかった場合は、理解できるまで
+戻って何度も読み返してください。}
+
+\section{今度はもっと複雑なものを - 認証\label{tut-more-complicated}}
+
+基本的なハンドラの書き方を理解したところで、もう少し複雑なものに取り組んで
+みましょう。
+
+ディレクトリをパスワードで保護したいとしましょう。ログイン名は\samp{spam}、
+パスワードは\samp{eggs} にします。
+
+まず、認証が必要な場合に \emph{認証 (authentication)} ハンドラを
+呼び出すようApache に教えます。\code{PythonAuthenHandler} を使います。
+従って、設定ファイルは以下のようになります:
+
+\begin{verbatim}
+  <Directory /mywebdir>
+      AddHandler mod_python .py
+      PythonHandler myscript
+      PythonAuthenHandler myscript
+      PythonDebug On
+  </Directory>
+\end{verbatim}
+
+二つのハンドラに対して同じスクリプトが指定されていることに注意してください。
+ご存知のように、\module{mod_python} は異なるハンドラに対して異なる
+名前の関数をスクリプトから探し出すので、これで構わないのです。
+
+次に、Basic HTTP 認証を使い、有効なユーザだけが許可されるようApache に指示
+します(これはかなり基本的なApacheの設定なので、ここでは詳しく説明しません)。
+設定ファイルは以下のようになりました:
+
+\begin{verbatim}
+  <Directory /mywebdir>
+     AddHandler mod_python .py
+     PythonHandler myscript
+     PythonAuthenHandler myscript
+     PythonDebug On
+     AuthType Basic
+     AuthName "Restricted Area"
+     require valid-user
+  </Directory>
+\end{verbatim}          
+
+さて、今度は認証のハンドラ関数を \file{myscript.py} 内に記述しましょう。
+認証ハンドラは以下のようになります:
+
+\begin{verbatim}
+
+from mod_python import apache
+
+def authenhandler(req):
+
+    pw = req.get_basic_auth_pw()
+    user = req.user
+
+    if user == "spam" and pw == "eggs":
+       return apache.OK
+    else:
+       return apache.HTTP_UNAUTHORIZED
+\end{verbatim}  
+
+一行づつ見てゆきましょう:
+
+\begin{itemize}
+
+\item
+  \begin{verbatim}
+def authenhandler(req):
+  \end{verbatim}
+
+ハンドラ関数の宣言です。上でも説明したように、\module{mod_python} は
+ディレクティブの名前 (\code{PythonAuthenHandler})から先頭の\samp{Python} を
+落して小文字にした文字列から関数名をとるので、関数名は \code{authenhandler} 
+になります。
+
+\item
+  \begin{verbatim}
+    pw = req.get_basic_auth_pw()
+  \end{verbatim}
+
+上記のようにしてパスワードを取得します。
+Basic HTTP 認証はパスワードを base64 でエンコードされたフォームで
+送信することでほんの僅かだけ分かりにくくして転送します。この関数はパスワードを
+デコードして、文字列にして返します。この関数はユーザ名を取得する前に呼び出さねば
+ならないので注意してください。
+
+\item
+  \begin{verbatim}
+    user = req.user
+  \end{verbatim}
+  
+これでユーザが入力したユーザ名を取得します。
+
+\item
+  \begin{verbatim}
+    if user == "spam" and pw == "eggs":
+        return apache.OK
+  \end{verbatim}
+
+ユーザが入力した値を比較し、期待通りの値なら処理を先に進めて\constant{apache.OK}
+を返すよう Apache に指示します。Apache はこのリクエストのフェイズが完了した
+ものとみなし、次のフェイズに進みます (\code{.py} ファイルに対する
+リクエストであれば、次は \function{handler()} を呼び出します)
+
+\item
+  \begin{verbatim}
+    else:
+        return apache.HTTP_UNAUTHORIZED 
+  \end{verbatim}
+
+期待通りの値でなければ、Apache は\constant{HTTP_UNAUTHORIZED} をクライアント
+に返します。通常、この戻り値を受け取ると、ブラウザはユーザ名とパスワードの入力を
+促すダイアログボックスを表示します。
+
+\end{itemize}
+

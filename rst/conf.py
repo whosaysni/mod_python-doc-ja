@@ -56,9 +56,9 @@ html_last_updated_fmt = '%b %d, %Y'
 html_use_smartypants = True
 
 # Custom sidebar templates, filenames relative to this file.
-html_sidebars = {
-    'index': 'indexsidebar.html',
-}
+# html_sidebars = {
+#    'index': 'indexsidebar.html',
+#}
 
 # Output file base name for HTML help builder.                                                                                                                                                            
 htmlhelp_basename = 'mod_python' + release.replace('.', '')
@@ -78,11 +78,11 @@ latex_font_size = '10pt'
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, document class [howto/manual]).
-_stdauthor = r'Gregory Trubetskoy'
-latex_documents = [
-    ('contents', 'contents.tex',
-     'Mod_python Documentation', _stdauthor, 'manual'),
-]
+# _stdauthor = r'Gregory Trubetskoy'
+# latex_documents = [
+#     ('contents', 'contents.tex',
+#      'Mod_python Documentation', _stdauthor, 'manual'),
+# ]
 
 # Documents to append as an appendix to all manuals.
 latex_appendices = ['about', 'license', 'copyright']
@@ -91,6 +91,5 @@ latex_appendices = ['about', 'license', 'copyright']
 latex_elements = {'inputenc': r'\usepackage[utf8x]{inputenc}', 'utf8extra': ''}
 
 # configurations for readthedocs
-master_doc = 'contents'
 language = 'ja'
-source_encoding = 'utf-8-sig'
+

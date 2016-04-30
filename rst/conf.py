@@ -27,7 +27,7 @@ copyright = '1990-%s, Apache Software Foundation, Gregory Trubetskoy' % time.str
 
 # version
 import commands
-v, r = 3, 5 # commands.getoutput("../dist/version.sh").rsplit('.', 1)
+v, r = '3', '5.0-1330047' # commands.getoutput("../dist/version.sh").rsplit('.', 1)
 version, release = v, v+'.'+r
 
 # Ignore .rst in Sphinx its self.

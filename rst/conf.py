@@ -64,7 +64,7 @@ html_sidebars = {
 htmlhelp_basename = 'mod_python' + release.replace('.', '')
 
 # Split the index
-html_split_index = True
+html_split_index = False # True
 
 
 # Options for LaTeX output

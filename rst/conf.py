@@ -89,3 +89,6 @@ latex_appendices = ['about', 'license', 'copyright']
 
 # Get LaTeX to handle Unicode correctly
 latex_elements = {'inputenc': r'\usepackage[utf8x]{inputenc}', 'utf8extra': ''}
+
+language = 'ja'
+source_encoding = 'utf-8-sig'

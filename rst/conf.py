@@ -64,7 +64,7 @@ html_sidebars = {
 htmlhelp_basename = 'mod_python' + release.replace('.', '')
 
 # Split the index
-html_split_index = False # True
+html_split_index = False
 
 
 # Options for LaTeX output
@@ -90,5 +90,7 @@ latex_appendices = ['about', 'license', 'copyright']
 # Get LaTeX to handle Unicode correctly
 latex_elements = {'inputenc': r'\usepackage[utf8x]{inputenc}', 'utf8extra': ''}
 
+# configurations for readthedocs
+master_doc = 'contents'
 language = 'ja'
 source_encoding = 'utf-8-sig'

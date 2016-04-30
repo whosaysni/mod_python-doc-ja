@@ -8,7 +8,7 @@
 # that aren't pickleable (module imports are okay, they're removed automatically).
 
 import sys, os, time
-sys.path.append(os.path.abspath('tools/sphinxext'))
+# sys.path.append(os.path.abspath('tools/sphinxext'))
 
 
 # General configuration
@@ -27,7 +27,7 @@ copyright = '1990-%s, Apache Software Foundation, Gregory Trubetskoy' % time.str
 
 # version
 import commands
-v, r = commands.getoutput("../dist/version.sh").rsplit('.', 1)
+v, r = 3, 5 # commands.getoutput("../dist/version.sh").rsplit('.', 1)
 version, release = v, v+'.'+r
 
 # Ignore .rst in Sphinx its self.

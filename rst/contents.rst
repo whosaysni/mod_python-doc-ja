@@ -1,18 +1,16 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
- Mod_python Documentation
+ Mod_python ドキュメント
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-This document aims to be the only necessary and authoritative source
-of information about mod_python, usable as a comprehensive reference,
-a user guide and a tutorial all-in-one.
+このドキュメントは、 mod_python に関する必須で信頼できる情報源であるとともに、網羅的なリファレンスとしても使えて、ユーザガイドやチュートリアルも兼ねるよう目指しています。
 
 .. seealso::
 
-  `Python Language Web Site <http://www.python.org/>`_
-     for information on the Python language
+  `プログラミング言語 Python のサイト <http://www.python.org/>`_
+     プログラミング言語 Python の情報です。
 
-  `Apache HTTP Server Project Web Site <http://httpd.apache.org/>`_
-     for information on the Apache server
+  `Apache HTTP サーバプロジェクトのサイト <http://httpd.apache.org/>`_
+     Apache Web サーバの情報です。
 
 .. toctree::
 
@@ -28,3 +26,4 @@ a user guide and a tutorial all-in-one.
    license.rst
    about.rst
    copyright.rst
+   jptranslation.rst

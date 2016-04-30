@@ -1,68 +1,56 @@
 .. _installation:
 
 ************
-Installation
+インストール
 ************
 
 .. note::
 
-  By far the best place to get help with installation and other issues
-  is the mod_python mailing list. Please take a moment to join the
-  mod_python mailing list by sending an e-mail with the word
-  "subscribe" in the subject to mod_python-request@modpython.org or visit the
-  `mod_python mailing list page <http://mailman.modpython.org/mailman/listinfo/mod_python>`_
-
+   インストールやその他の問題に関して、参考になるのは依然として mod_python メーリングリストです。
+   表題にsubscribe と書いたメールを mod_python mod_python-request@modpython.org に送るか、 `mod_python メーリングリストのページ <http://mailman.modpython.org/mailman/listinfo/mod_python>`_ に行ってみましょう。
 
 .. _inst-prerequisites:
 
-Prerequisites
-=============
+インストール要件
+==================
 
-In the ideal case your Operating System provides a pre-packaged
-version of mod_python. If not, you will need to compile it
-yourself. This version of mod_python requires:
+理想的なケースでは、 OS がパッケージ済みの mod_python を提供しています。
+そうでなければ、自分でコンパイルせねばなりません。
+このバージョンの mod_python には、下記が必要です:
 
-* Python 2 (2.6 and up) or Python 3 (3.3 and up).
-* Apache 2.2 or later. Apache 2.4 is highly recommended over 2.2.
+* Python 2 (2.6 以降) または Python 3 (3.3 以降)
+* Apache 2.2 以降。 Apache 2.4 を強く推奨します。
 
-In order to compile mod_python you will need to have the include files
-for both Apache and Python, as well as the Python library installed on
-your system.  If you installed Python and Apache from source, then you
-already have everything needed. However, if you are using pre-packaged
-software then you may need to install the "development" packages
-which contain the include files and libraries necessary to compile
-mod_python. Please check your OS documentation for specifics. (Hint:
-look for packages named python-devel or python-dev and apache-devel or
-apache-dev or httpd-dev, etc.).
+mod_python をコンパイルするには、Apache と Python の両方の include ファイルと、Python のライブラリが、システムにインストールされていなければなりません。
+Python と Apache をソースコードからインストールしたなら、必要なものはすべて揃っているはずです。
+しかし、パッケージ済みのソフトウェアを使っている場合には、 mod_python のコンパイルに必要な include ファイルやライブラリの入った開発者向けのパッケージを追加で入れる必要があるでしょう。
+詳しくは、 OS のドキュメントを調べてみてください。 (ヒント: python-devel や python-dev, apache-devel, apache-dev, httpd-dev といったパッケージを探してみてください)
 
 .. _inst-compiling:
 
-Compiling
-=========
+コンパイル
+============
 
 .. _inst-configure:
 
-Running :file:`./configure`
----------------------------
+:file:`./configure` を実行する
+---------------------------------
 
-The :file:`./configure` script will analyze your environment and
-create custom Makefiles particular to your system. Aside from all the
-standard autoconf stuff, :file:`./configure` does the following:
+:file:`./configure` スクリプトを実行すると、実行環境を解析して、使っているシステムに特化した専用の Makefile を作成します。
+autoconf が実行する標準のオプション以外に、 :file:`./configure` には以下のオプションがあります:
 
 .. index::
    single: apxs
    pair: ./configure; --with-apxs
 
-* Finds out whether a program called :program:`apxs` is available. This
-  program is part of the standard Apache distribution, and is required
-  for compilation.
+* :program:`apxs` というプログラムを利用できるか調べます。
+:program:`apxs` は標準の Apache 配布物に入っていて、コンパイルに必要です。
 
-  You can manually specify the location of apxs by using the
-  :option:`with-apxs` option, e.g.::
+  :program:`apxs` の場所は、以下のように、 :option:`with-apxs` オプションでマニュアル指定もできます::
 
      $ ./configure --with-apxs=/usr/local/apache/bin/apxs
 
-  It is recommended that you specify this option.
+  このオプションはいつも指定するよう勧めます。
 
 .. index::
    single: libpython.a

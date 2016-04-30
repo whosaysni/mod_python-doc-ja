@@ -2976,26 +2976,20 @@ The following example demonstrates a simple hit counter.::
 .. moduleauthor:: Gregory Trubetskoy grisha@modpython.org
 
 
-The :mod:`psp` module provides a way to convert text documents
-(including, but not limited to HTML documents) containing Python code
-embedded in special brackets into pure Python code suitable for
-execution within a mod_python handler, thereby providing a versatile
-mechanism for delivering dynamic content in a style similar to ASP,
-JSP and others.
+:mod:`psp` モジュールは、特別なブラケット表記の中に Python コードを埋め込んだテキストドキュメント (HTMLも含みますが、それだけではありません) を、 mod_python ハンドラ内での実行に適した pure Python コードに変換します。
+これにより、ASP や JSP などに似たスタイルで、動的なコンテンツを配信できる使い勝手のよいメカニズムを実現しています。
 
-The parser used by :mod:`psp` is written in C (generated using flex)
-and is therefore very fast.
+:mod:`psp`  の使っているパーザは (flex で生成した) C で書かれているため、非常に高速に動作します。
 
-See :ref:`hand-psp` for additional PSP information.
+PSP の詳細は「 :ref:`PSP ハンドラ <hand-psp>` の節を参照してください。}
 
-Inside the document, Python :dfn:`code` needs to be surrounded by
-``'<%'`` and ``'%>'``. Python :dfn:`expressions` are enclosed in
-``'<%='`` and ``'%>'``. A :dfn:`directive` can be enclosed in
-``'<%@'`` and ``'%>'``. A comment (which will never be part of
-the resulting code) can be enclosed in ``'<%--'`` and ``'--%>'``
 
-Here is a primitive PSP page that demonstrated use of both code and
-expression embedded in an HTML document::
+ドキュメント中の Python の :dfn:`コード` は、 ``'<%'`` と ``'%>'`` で囲わねばなりません。
+Python の :dfn:`式` は、 ``'<%='`` と ``'%>'`` で囲みます。
+:dfn:`ディレクティブ` は ``'<%@'`` と ``'%>'`` で囲みます。
+コメント(処理後のコード中には入りません) は ``'<%--'`` と ``'--%>'`` で囲います。
+
+コードと式の両方を HTML ドキュメントに埋め込んでいる簡単な PSP ページの例を以下に示します::
 
    <html>
    <%
@@ -3004,9 +2998,7 @@ expression embedded in an HTML document::
    Hello world, the time is: <%=time.strftime("%Y-%m-%d, %H:%M:%S")%>
    </html>
 
-
-Internally, the PSP parser would translate the above page into the
-following Python code::
+内部では、PSP パーザが上のページを以下の Python コードに翻訳します:::
 
    req.write("""<html>
    """)
@@ -3016,228 +3008,183 @@ following Python code::
    </html>
    """)
 
-This code, when executed inside a handler would result in a page
-displaying words ``'Hello world, the time is: '`` followed by current time.
+このコードをハンドラ内で実行すると、 ``'Hello world, the time is: '`` の後ろに現在の時刻が入ったページになります。
 
-Python code can be used to output parts of the page conditionally or
-in loops. Blocks are denoted from within Python code by
-indentation. The last indentation in Python code (even if it is a
-comment) will persist through the document until either end of
-document or more Python code.
+Python コードを使って、条件やループでページの一部分を表示できます。
+Python コード内のブロックはインデントで表現されます。ある Python コード
+ブロックの最後の行のインデントは (コメント文であっても) ドキュメントの
+末尾か、次の Python コードブロックまで持続します。
 
-Here is an example::
+例を示します::
 
    <html>
    <%
    for n in range(3):
-       # This indent will persist
+       # このインデントレベルが維持される
    %>
-   <p>This paragraph will be
-   repeated 3 times.</p>
+   <p>この行の出力は
+   三回繰り返す</p>
    <%
-   # This line will cause the block to end
+   # この行でブロックが終わる
    %>
-   This line will only be shown once.<br>
+   この行は一度しか表示されない<br>
    </html>
 
-The above will be internally translated to the following Python code::
+上の例は、内部的には以下の Python コードに翻訳されます::
 
    req.write("""<html>
    """)
    for n in range(3):
-       # This indent will persist
+       # このインデントレベルが維持される
        req.write("""
-   <p>This paragraph will be
-   repeated 3 times.</p>
+   <p>この行の出力は
+   三回繰り返す</p>
    """)
-   # This line will cause the block to end
+   # この行でブロックが終わる
    req.write("""
-   This line will only be shown once.<br>
+   この行は一度しか表示されない<br>
    </html>
    """)
 
-The parser is also smart enough to figure out the indent if the last
-line of Python ends with ``':'`` (colon). Considering this, and that the
-indent is reset when a newline is encountered inside ``'<% %>'``, the
-above page can be written as::
+パーザは賢くて、Python コードブロックの最後の行が ``':'`` で終っている場合にも、正しくインデントを推測します。
+このことと、 ``'<% %>'`` の中で改行に到達するとインデントがリセットされることを考慮すると、上のページは以下のようにも書けます::
+
 
    <html>
    <%
    for n in range(3):
    %>
-   <p>This paragraph will be
-   repeated 3 times.</p>
+   <p>この行の出力は
+   三回繰り返す</p>
    <%
    %>
-   This line will only be shown once.<br>
+   この行は一度しか表示されない<br>
    </html>
 
-However, the above code can be confusing, thus having descriptive
-comments denoting blocks is highly recommended as a good practice.
+とはいえ、このコードには困惑させられるでしょう。ですから、お作法として、ブロック間で説明用のコメントを入れておくよう強く勧めます。
 
-The only directive supported at this time is ``include``, here is
-how it can be used::
+現時点でサポートしているディレクティブは ``include`` だけで、以下のようにして使います::
 
    <%@ include file="/file/to/include"%>
 
-If the :func:`parse` function was called with the *dir* argument, then
-the file can be specified as a relative path, otherwise it has to be
-absolute::
+:func:`parse` を *dir* 引数つきで呼び出す場合には、file は相対パスで指定できます。それ以外の場合には絶対パスでなければなりません。
 
 .. class:: PSP(req[, filename[, string[, vars]]])
 
-   This class represents a PSP object.
+   PSP オブジェクトを表すクラスです。
 
-   *req* is a request object; *filename* and *string* are optional
-   keyword arguments which indicate the source of the PSP code. Only
-   one of these can be specified. If neither is specified,
-   ``req.filename`` is used as *filename*.
+   *req* はリクエストオブジェクトです。 *filename* と *string* はオプションのキーワード引数で、 PSP コードのソースを表します。
+   これらの変数はいずれか一つだけを指定できます。両方とも指定しなかった場合、 *filename* に *req.filename* を使います。
 
-   *vars* is a dictionary of global variables. Vars passed in the
-   :meth:`run` method will override vars passed in here.
+   *vars* はグローバル変数の辞書です。 :meth:`run` メソッドに変数を渡すと、ここで渡した vars の内容をオーバライドします。
 
-   This class is used internally by the PSP handler, but can also be
-   used as a general purpose templating tool.
+   このクラスは PSP ハンドラが内部で利用しますが、汎用のテンプレートツールとしても使えます。
 
-   When a file is used as the source, the code object resulting from
-   the specified file is stored in a memory cache keyed on file name
-   and file modification time. The cache is global to the Python
-   interpreter. Therefore, unless the file modification time changes,
-   the file is parsed and resulting code is compiled only once per
-   interpreter.
-
-   The cache is limited to 512 pages, which depending on the size of
-   the pages could potentially occupy a significant amount of
-   memory. If memory is of concern, then you can switch to dbm file
-   caching. Our simple tests showed only 20% slower performance using
-   bsd db. You will need to check which implementation :mod:`anydbm`
-   defaults to on your system as some dbm libraries impose a limit on
-   the size of the entry making them unsuitable. Dbm caching can be
-   enabled via ``mod_python.psp.cache_database_filename`` Python
-   option, e.g.::
+   ファイルをソースに使う場合、指定したファイルから得たコードオブジェクトは、ファイル名と更新時刻をキーにしてメモリキャッシュ上に保存されます。
+   キャッシュは Python インタプリタ上ではグローバルな値です。
+   従って、ファイル更新時刻が変わらない限り、ファイルの解析とコードオブジェクトのコンパイルは、インタプリタごとに一度しか行いません。
+   
+   キャッシュされたページのサイズが時としてかなりのメモリを消費することがあるため、キャッシュのサイズは 512 ページに制限されています。
+   メモリの消費量が問題になる場合は、 dbm によるファイルキャッシュに切替えられます。
+   bsd db を使った簡単なテストでは、速度はわずか 20% しか低下しませんでした。
+   dbm ライブラリによっては、レコードエントリのサイズに制限を課しているために利用できないことがあります。そのため、自分のシステムで、 :mod:`anydbm` のデフォルトの実装が何かを調べておく必要があるでしょう。
+   dbm によるキャッシュは mod_python のオプション ``mod_python.psp.cache_database_filename`` で有効にします::
 
       PythonOption mod_python.psp.cache_database_filename "/tmp/pspcache.dbm"
 
-   Note that the dbm cache file is not deleted when the server
-   restarts.
+   dbm キャッシュファイルは、サーバの再起動しても削除されないので注意してください。
 
-   Unlike with files, the code objects resulting from a string are
-   cached in memory only. There is no option to cache in a dbm file at
-   this time.
+   ファイルと違い、文字列から生成したコードオブジェクトはメモリ上にしかキャッシュされません。
+   現時点では、dbm ファイル上にキャッシュするという選択肢はありません。
 
-   Note that the above name for the option setting was only changed to
-   this value in mod_python 3.3. If you need to retain backward
-   compatibility with older versions of mod_python use the
-   ``PSPDbmCache`` option instead.
+   上のオプション名が現在の名前になったのは、 mod_python 3.3 からなので注意してください。
+   以前のバージョンの mod_python との互換性を保ちたければ、 ``PSPDbmCache`` を使ってください。
 
    .. method:: PSP.run([vars[, flush]])
 
-      This method will execute the code (produced at object
-      initialization time by parsing and compiling the PSP
-      source). Optional argument *vars* is a dictionary keyed by
-      strings that will be passed in as global variables. Optional
-      argument *flush* is a boolean flag indicating whether output
-      should be flushed. The default is not to flush output.
+      このメソッドは、 初期化時にPSPソースを解析／コンパイルしてできたコードを実行します。
+      オプションの引数 *vars* は文字列をキーにした辞書で、グローバル変数の辞書として渡されます。
+      オプションの引数 *flush* はブール値で、出力をフラッシュするかどうかを指定します。
+      デフォルト値は False で、フラッシュしません。
 
-      Additionally, the PSP code will be given global variables
-      ``req``, ``psp``, ``session`` and ``form``. A session will be
-      created and assigned to ``session`` variable only if ``session``
-      is referenced in the code (the PSP handler examines ``co_names``
-      of the code object to make that determination). Remember that a
-      mere mention of ``session`` will generate cookies and turn on
-      session locking, which may or may not be what you
-      want. Similarly, a mod_python :class:`FieldStorage` object will
-      be instantiated if ``form`` is referenced in the code.
+      さらに、PSP コードには ``req``, ``psp``, ``session`` および ``form`` といったグローバル変数が渡されます。
+      コード中で ``session`` を参照している場合に限り、セッション情報が生成され、変数 ``session`` に代入されます
+      (PSP ハンドラはコードオブジェクトの ``co_names`` を調べて ``session`` への参照の有無を判定します)。
+      ``session`` を一度でも参照すると、好むと好まざるとにかかわらず ``session`` はクッキーを生成してセッションのロックを開始するということを覚えておいてください。
+      同様に、 ``form`` がコード中で参照されていると、 ``mod_python`` クラスの :class:`FieldStorage` オブジェクトがインスタンス化されます。
 
-      The object passed in ``psp`` is an instance of
-      :class:`PSPInterface`.
+      ``psp`` には :class:`PSPInstance` のインスタンスが渡されます。
 
 
    .. method:: PSP.display_code()
 
-      Returns an HTML-formatted string representing a side-by-side
-      listing of the original PSP code and resulting Python code
-      produced by the PSP parser.
+      元の PSP コードと PSP パーザが生成した Python コードのリストを横に並べたような形に HTML でフォーマットし、文字列にして返します。
 
-      Here is an example of how :class:`PSP` can be used as a templating
-      mechanism:
+:class:`PSP` をテンプレートメカニズムとして使う例を、以下に示します:
 
-      The template file::
+テンプレートファイルは以下のようになります::
 
-         <html>
-           <!-- This is a simple psp template called template.html -->
-           <h1>Hello, <%=what%>!</h1>
-         </html>
+   <html>
+     <!-- This is a simple psp template called template.html -->
+     <h1>Hello, <%=what%>!</h1>
+   </html>
 
-      The handler code::
+ハンドラコードは以下のようになります::
 
-         from mod_python import apache, psp
+   from mod_python import apache, psp
 
-         def handler(req):
-             template = psp.PSP(req, filename='template.html')
-             template.run({'what':'world'})
-             return apache.OK
+   def handler(req):
+       template = psp.PSP(req, filename='template.html')
+       template.run({'what':'world'})
+       return apache.OK
 
 .. class:: PSPInterface()
 
-   An object of this class is passed as a global variable ``psp`` to
-   the PSP code. Objects of this class are instantiated internally and
-   the interface to :meth:`__init__` is purposely undocumented.
+このクラスのオブジェクトは、グローバル変数 ``psp`` として PSP コードに渡されます。
+オブジェクトは内部的にインスタンス化されるので、 :meth:`__init__` のインタフェースは意図的にドキュメント化していません。
 
    .. method:: set_error_page(filename)
 
-      Used to set a psp page to be processed when an exception
-      occurs. If the path is absolute, it will be appended to document
-      root, otherwise the file is assumed to exist in the same directory
-      as the current page. The error page will receive one additional
-      variable, ``exception``, which is a 3-tuple returned by
-      ``sys.exc_info()``.
+      例外が生じたときに処理される psp ページを設定するために使います。
+      filename が絶対パス表記の場合、ドキュメントルートに続くパスとみなします。
+      それ以外の場合は、現在のページと同じディレクトリにあるものとみなします。
+      エラーページは ``sys.exc_info()`` の返す三要素のタプルを引数 ``exception`` で受け取ります。
 
    .. method:: apply_data(object[, **kw])
 
-      This method will call the callable object *object*, passing form
-      data as keyword arguments, and return the result.
+      このメソッドはフォームデータをキーワード引数にして呼び出し可能オブジェクト *object* を呼び出し、その結果を返します。
 
    .. method:: redirect(location[, permanent=0])
 
-      This method will redirect the browser to location
-      *location*. If *permanent* is true, then
-      :const:`MOVED_PERMANENTLY` will be sent (as opposed to
-      :const:`MOVED_TEMPORARILY`).
+      このメソッドは、ブラウザを *location* にリダイレクトさせます。
+      *permanent* が真の場合、 :const:``MOVED_PERMANENTLY`` を送信します(そうでない場合には :const:`MOVED_TEMPORARILY` を送信します)。
 
       .. note::
 
-         Redirection can only happen before any data is sent to the
-         client, therefore the Python code block calling this method must
-         be at the very beginning of the page. Otherwise an
-         :exc:`IOError` exception will be raised.
+         リダイレクトを起こせるのはクライアントにデータを送信する前だけです。
+         従って、このメソッドを呼び出す Python コードブロックはページの先頭になければなりません。
+         そうでない場合、 :exc:`IOError` が送出されます。
 
-      Example::
+      例::
 
          <%
 
-         # note that the '<' above is the first byte of the page!
+         # 上の '<' は、この PSP ファイルの先頭の文字であることに注意!
          psp.redirect('http://www.modpython.org')
          %>
 
-Additionally, the :mod:`psp` module provides the following low level
-functions:
+この他に、 :mod:`psp` は以下の低水準関数を提供しています:
 
 .. function:: parse(filename[, dir])
 
-   This function will open file named *filename*, read and parse its
-   content and return a string of resulting Python code.
+   この関数は、名前が *filename* のファイルを開き、内容を読み出して解析し、得られた Python コードの入った文字列を返します。
 
-   If *dir* is specified, then the ultimate filename to be parsed is
-   constructed by concatenating *dir* and *filename*, and the argument
-   to ``include`` directive can be specified as a relative path. (Note
-   that this is a simple concatenation, no path separator will be
-   inserted if *dir* does not end with one).
+   *dir* を指定すると、解析対象となるファイルの完全な名前を *dir* と *filename* を使って決定すると同時に、 ``include`` ディレクティブの引数を相対パスとして指定できるようになります。
+   (ファイル名は単に二つの変数をつなげて作成するため、 *dir* の末尾にパス区切り文字が入っていなくても補完されないので注意してください。)
 
 .. function:: parsestring(string)
 
-   This function will parse contents of *string* and return a string
-   of resulting Python code.
+   この関数は *string* の内容を解析し、得られた Python コードを文字列で返します。
 
 
 .. _pyapi-httpdconf:

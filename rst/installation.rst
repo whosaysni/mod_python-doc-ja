@@ -184,7 +184,7 @@ Running :file:`make install`
 
 .. _inst-apacheconfig:
 
-Configuring Apache
+Apache の設定
 ==================
 
 .. index::
@@ -193,27 +193,24 @@ Configuring Apache
 
 * *LoadModule*
 
-  You need to configure Apache to load the module by adding the
-  following line in the Apache configuration file, usually called
-  :file:`httpd.conf` or :file:`apache.conf`::
+  Apacheの設定ファイルに以下の設定行を追加して、モジュールをロードするよう指示する必要があります。
+  設定ファイルは通常、 :file:`httpd.conf` または :file:`apache.conf` という名前です::o
 
      LoadModule python_module libexec/mod_python.so
 
-  The actual path to :program:`mod_python.so` may vary, but :program:`make install`
-  should report at the very end exactly where :program:`mod_python.so`
-  was placed and how the ``LoadModule`` directive should appear.
+  :program:`mod_python.so`  の実際のパスは場合によって異なりますが、 :program:`make install` を行うと、 :program:`mod_python.so`  がどこに置かれたか、そして ``LoadModule`` ディレクトリをどう書けばよいかを報告してくれます。
 
-* See :ref:`inst-testing` below for more basic configuration parameters.
+* :ref:`inst-testing` を読んで、基本的な設定パラメタを確認してください。
 
 
 .. _inst-testing:
 
-Testing
+テスト
 =======
 
-#. Make a directory that would be visible on your web site, e.g. ``htdocs/test``.
+#. 手元のウェブサイトから見えるディレクトリ、例えば ``htdocs/test`` を作成してください。
 
-#. Add the following configuration directives to the main server config file::
+#. 下記のApache ディレクティブを、メインのサーバ設定ファイルに追加します::
 
      <Directory /some/directory/htdocs/test>
          AddHandler mod_python .py
@@ -221,29 +218,20 @@ Testing
          PythonDebug On
      </Directory>
 
-   (Substitute ``/some/directory`` above for something applicable to
-   your system, usually your Apache ServerRoot)
+   (上の ``/some/directory`` は、お使いのシステムに合わせて変えてください。通常は Apache の ServerRoot の設定値と同じです)
 
-   This configuration can also be specified in an :file:`.htaccess`
-   file.  Note that :file:`.htaccess` configuration is typically
-   disabled by default, to enable it in a directory specify
-   ``AllowOverride`` with at least ``FileInfo``.
+   この設定は、 :file:`.htaccess` ファイルにも書けます。
+   :file:`.htaccess` ファイルは、デフォルトの設定では無効になっているため、このディレクトリに、少なくとも ``FileInfo`` の設定された ``AllowOverride`` を適用しておかねばなりません。
 
-#. This causes all requests for URLs ending in ``.py`` to be processed
-   by mod_python. Upon being handed a request, mod_python looks for
-   the appropriate *python handler* to handle it. Here, there is a
-   single ``PythonHandler`` directive defining module ``mptest`` as
-   the python handler to use. We'll see next how this python handler
-   is defined.
+#. 上の設定によって、 ``.py`` で終わる URL は mod_python で処理されるようになりました。
+   リクエスト処理が mod_python に渡ると、 mod_python は適切な *python ハンドラ* を探して処理します。
+   ここでは、 ``PythonHandler`` ディレクティブは ``mptest`` を Python ハンドラとして指定しています。
+   Python ハンドラがどのように定義されているかは、後でわかります。
 
-#. At this time, if you made changes to the main configuration file,
-   you will need to restart Apache in order for the changes to take
-   effect.
+#. ここまでの作業でメインの設定ファイルに変更を加えているならば、変更内容を有効にするため、Apacheを再起動する必要があります。
 
-#. Edit :file:`mptest.py` file in the :file:`htdocs/test` directory so
-   that is has the following lines (be careful when cutting and
-   pasting from your browser, you may end up with incorrect
-   indentation and a syntax error)::
+#. :file:`htdocs/test` ディレクトリ下の :file:`mptest.py`  ファイルを編集して、以下の内容にします
+   (ブラウザからカット&ペーストするときには注意しましょう。インデントが正しくなかったり、文法エラーになったりするかもしれません)::
 
      from mod_python import apache
 
@@ -252,59 +240,51 @@ Testing
          req.write("Hello World!")
          return apache.OK
 
-#. Point your browser to the URL referring to the :file:`mptest.py`;
-   you should see ``'Hello World!'``. If you didn't - refer to the
-   troubleshooting section next.
+#. :file:`mptest.py` が参照先になるように、ブラウザに URL を指定します。
+   ``'Hello World!'`` という文字列を読めるはずです。
+   うまく読めなければ、次のトラブルシューティングの節を参照してください。
 
-#. Note that according to the configuration written above, you can
-   point your browser to *any* URL ending in .py in the test
-   directory.  Therefore pointing your browser to
-   :file:`/test/foobar.py` will be handled exactly the same way by
-   :file:`mptest.py`. This is because the code in the ``handler``
-   function does not bother examining the URL and always acts the same
-   way no matter what the URL is.
+#. 上で行った設定のため、 ``test`` ディレクトリ中の .py で終わるファイル名なら *何でも* ブラウザに指定できるので注意してください。
+   たとえば :file:`/test/foobar.py` に行っても、 :file:`mptest.py` と全く同じ動作になります。
+   これは、ハンドラの実装が、今扱っている URL が何であるかに関係なく、同じ処理をしているからです。
 
-#. If everything worked well, move on to Chapter :ref:`tutorial`.
+#. 全てうまく動作しているなら、 :ref:`チュートリアル <tutorial>` に進みましょう。
 
 
 .. _inst-trouble:
 
-Troubleshooting
-===============
+トラブルシューティング
+========================
 
-There are a few things you can try to identify the problem:
+問題の原因を調べるためにできることが 2, 3 あります:
 
-* Carefully study the error output, if any.
+* エラー出力が出ていれば、注意深く調べます。
 
-* Check the server error log file, it may contain useful clues.
+* サーバのエラーログファイルを調べます。エラーログファイルには、有用な手がかりが記録されていることがあります。
 
-* Try running Apache from the command line in single process mode::
+* Apache を、コマンドラインから単一プロセスモード (single process mode) で起動してみましょう::
 
      ./httpd -X
 
-  This prevents it from backgrounding itself and may provide some useful
-  information.
+  この起動方法は Apache がバックグラウンドで動作するのを防ぐので、有用な情報を得られることがあります。
 
-* Beginning with mod_python 3.2.0, you can use the mod_python.testhandler
-  to diagnose your configuration. Add this to your :file:`httpd.conf` file::
+* mod_python 3.2.0 からは、 mod_python.testhandler で設定ファイルを診断できます。
+  :file:`httpd.conf` に下記を追加してください::
 
      <Location /mpinfo>
        SetHandler mod_python
        PythonHandler mod_python.testhandler
      </Location>
 
-  Now point your browser to the :file:`/mpinfo` URL
-  (e.g. :file:`http://localhost/mpinfo`) and note down the information given.
-  This will help you reporting your problem to the mod_python list.
+  ブラウザで :file:`/mpinfo`  (例: :file:`http://localhost/mpinfo`) にアクセスすると、設定情報を表示します。
+  この情報は、何か問題をメーリングリストに報告するときに役に立ちます。
 
-* Ask on the `mod_python list <http://mailman.modpython.org/mailman/listinfo/mod_python>`_.
-  Please make sure to provide specifics such as:
+* `メーリングリスト <http://mailman.modpython.org/mailman/listinfo/mod_python>`_ で質問してみましょう。
+  質問するときには、以下のスペックを載せるようにしてください:
 
-  * mod_python version.
-  * Your operating system type, name and version.
-  * Your Python version, and any unusual compilation options.
-  * Your Apache version.
-  * Relevant parts of the Apache config, .htaccess.
-  * Relevant parts of the Python code.
-
-
+  * mod_python のバージョン。
+  * OS のタイプ、名前とバージョン。
+  * Python のバージョンと、コンパイル時に特別に指定したオプション。
+  * Apache のバージョン。
+  * Apache 設定ファイルや :file:`.htaccess` 中の関連する部分。
+  * Python コードの関連する部分。

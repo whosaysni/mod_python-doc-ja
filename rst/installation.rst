@@ -56,38 +56,28 @@ autoconf が実行する標準のオプション以外に、 :file:`./configure`
    single: libpython.a
    pair: ./configure; --with-python
 
-* Checks your Python version and attempts to figure out where
-  :file:`libpython` is by looking at various parameters compiled into
-  your Python binary. By default, it will use the :program:`python`
-  program found in your :envvar:`PATH`.
+* Python のバージョンを調べ、Pythonバイナリ中にコンパイルされている様々なパラメタから、 :file:`libpython` がどこにあるか判定を試みます。
+  デフォルトでは :envvar:`PATH` 中に見付かった :program:`python` を使います。
 
-  If the first Python binary in the path is not suitable or not the one
-  desired for mod_python, you can specify an alternative location with the
-  :option:`with-python` option, e.g.::
+  パス上で最初に見付かる Python バイナリが mod_python の実行にふさわしくないバージョンだったり、他のバージョンのPythonを使いたい場合には、以下の例のように :option:`with-python` を指定して、別の Python の在処を指定できます::
 
      $ ./configure --with-python=/usr/local/bin/python2.3
 
 .. index::
    pair: ./configure; --with-mutex-dir
 
-* Sets the directory for the apache mutex locks (if the mutex
-  mechanism chosen by APR requires one).
+* Apache の排他制御ロック用のディレクトリを設定します (APR の選んだ排他制御メカニズムがロックディレクトリを必要とする場合)。
 
-  Note: mutex locks are used only by :ref:`mod_python Sessions <pyapi-sess>` and
-  :ref:`PSP <hand-psp>` (which maintains a Session implicitly). If you're
-  not using mod_python Sessions or PSP, then this setting should not
-  matter.
+  排他制御ロックを使うのは、 :ref:`mod_python の Sessions <pyapi-sess>` と :ref:`PSP <hand-psp>` (内部で Session を維持しているため) だけです。 mod_python の Session や PSP を使わないのなら、この設定は関係ありません。
 
-  Default is :file:`/tmp`. The directory must exist and be
-  writable by the owner of the apache process.
+  デフォルトの場所は :file:`/tmp` です。ディレクトリは実在せねばならず、Apache プロセスのオーナ権限で書き込めなければなりません。
 
-  Use :option:`with-mutex-dir` option, e.g::
+  :option:`with-mutex-dir` オプションを使って、以下のように指定します::
 
      $ ./configure --with-mutex-dir=/var/run/mod_python
 
-  The mutex directory can also be specified at run time using
-  :ref:`dir-other-po` ``mod_python.mutex_directory``.
-  See :ref:`inst-apacheconfig`.
+  排他制御ディレクトリは、実行時に :ref:`dir-other-po` ``mod_python.mutex_directory`` で指定できます。
+  :ref:`inst-apacheconfig` を参照してください。
 
   *New in version 3.3.0*
 
@@ -159,17 +149,15 @@ Installing
 .. index::
    pair: make; install
 
-Running :file:`make install`
+:file:`make install` を実行します。
 
-* This part of the installation in most cases needs to be done as root::
+* インストール作業のこの部分は root で行う必要があります::
 
       $ sudo make install
 
-  * This will copy the mod_python library (:file:`mod_python.so`) into your Apache
-    :file:`libexec` or :file:`modules` directory, where all the other modules are.
+  * このコマンドは、ライブラリ (:file:`mod_python.so`) を、Apache のすべてのモジュールが入る :file:`libexec` ディレクトリにコピーします。
 
-  * Lastly, it will install the Python libraries in
-    :file:`site-packages` and compile them.
+  * 次に、Python ライブラリを :file:`site-packages`  にコピーし、コンパイルします。
 
 .. index::
    pair: make targets; install_py_lib
@@ -177,10 +165,7 @@ Running :file:`make install`
 
 .. note::
 
-  If you wish to selectively install just the Python libraries
-  or the DSO (mod_python.so) (which may not always require superuser
-  privileges), you can use the following :program:`make` targets:
-  :option:`install_py_lib` and :option:`install_dso`.
+  Pythonライブラリだけ、あるいは DSO (mod_python.so) だけを選択的にインストールしたい場合には (この場合、常にスーパユーザ権限が必要なわけではありません)、 :program:`make` のターゲットに  :option:`install_py_lib` や :option:`install_dso` を使ってください。
 
 .. _inst-apacheconfig:
 

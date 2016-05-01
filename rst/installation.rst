@@ -84,24 +84,20 @@ autoconf が実行する標準のオプション以外に、 :file:`./configure`
 .. index::
    pair: ./configure; --with-max-locks
 
-* Sets the maximum number of mutex locks reserved by mod_python.
+* mod_python が確保する排他制御ロックの最大数を指定します。
 
-  Note: mutex locks are used only by :ref:`mod_python Sessions <pyapi-sess>` and
-  :ref:`PSP <hand-psp>` (which maintains a Session implicitly). If you're
-  not using mod_python Sessions or PSP, then this setting should not
-  matter.
+  排他制御ロックを使うのは、 :ref:`mod_python の Sessions <pyapi-sess>` と :ref:`PSP <hand-psp>` (内部で Session を維持しているため) だけです。 mod_python の Session や PSP を使わないのなら、この設定は関係ありません。
 
-  The mutexes used for locking are a limited resource on some
-  systems. Increasing the maximum number of locks may increase performance
-  when using session locking.  The default is 8. A reasonable number for
-  higher performance would be 32.
-  Use :option:`with-max-locks` option, e.g::
+  システムによっては、ロックに使える mutex リソースが限られています。
+  この値を増やすと、セッションのロック時のパフォーマンスが向上することがあります。
+  デフォルトは 8 です。高いパフォーマンスが必要なら、 32 程度が合理的です。
+
+  :option:`with-max-locks` オプションは以下のように指定します::
 
      $ ./configure --with-max-locks=32
 
-  The number of locks can also be specified at run time using
-  :ref:`dir-other-po` ``mod_python.mutex_locks``.
-  See :ref:`inst-apacheconfig`.
+  ロックの数は、実行時に :ref:`dir-other-po` ``mod_python.mutex_locks`` で指定できます。
+  :ref:`inst-apacheconfig` を参照してください。
 
   *New in version 3.2.0*
 
@@ -109,19 +105,17 @@ autoconf が実行する標準のオプション以外に、 :file:`./configure`
    single: flex
    pair: ./configure; --with-flex
 
-* Attempts to locate :program:`flex` and determine its version.
-  If :program:`flex` cannot be found in your :envvar:`PATH` :program:`configure`
-  will fail.  If the wrong version is found :program:`configure` will generate a warning.
-  You can generally ignore this warning unless you need to re-create
-  :file:`src/psp_parser.c`.
+* :program:`flex` を指定して、バージョンを固定します。
+  :program:`flex` が :envvar:`PATH` 上にない場合、 :program:`configure` は失敗します。
+  また、正しくないバージョンがあると、 :program:`configure` は警告を出力します。
+  :file:`src/psp_parser.c` を作りなおす必要がなければ、警告メッセージは無視してかまいません。
 
-  The parser used by psp (See :ref:`pyapi-psp`) is written in C
-  generated using :program:`flex`. (This requires a reentrant version
-  of :program:`flex`, 2.5.31 or later).
+  このパーザは、PSPが使います(:ref:`pyapi-psp` 参照)。
+  パーザは C で書かれていて、 :program:`flex` を使っています。
+  (リエントラントバージョンの :program:`flex`  2.5.31 以降が必要です)
 
-  If the first flex binary in the path is not suitable or not the one desired
-  you can specify an alternative location with the option:with-flex:
-  option, e.g::
+  パス上で最初に見つかる flex がコンパイルに適していない場合や、使いたくないバージョンである場合には、以下のようにして
+  :option:`with-flex` を指定してください::
 
      $ ./configure --with-flex=/usr/local/bin/flex
 

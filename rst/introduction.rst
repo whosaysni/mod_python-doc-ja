@@ -43,19 +43,16 @@ Apache のリクエスト処理過程についての詳しい情報は、
 
 .. _intro_other:
 
-Other Features
+その他の機能
 ==============
 
-Mod_python also provides a number features that fall in the category
-of web development, e.g. a parser for embedding Python in HTML
-(:ref:`pyapi-psp`), a handler that maps URL space into modules and
-functions (:ref:`hand-pub`), support for session (:ref:`pyapi-sess`)
-and cookie (:ref:`pyapi-cookie`) handling.
+Mod_python は、 Web 開発の領域の様々な機能を提供しています。
+HTML に Python を埋め込んで実行するためのパーザ(:ref:`pyapi-psp`)、URL 空間をモジュールや関数のマップするためのハンドラ  (:ref:`hand-pub`)、セッションのサポート (:ref:`pyapi-sess`)、クッキー操作などです。
 
 .. seealso::
 
    `Apache HTTP Server Developer Documentation <http://httpd.apache.org/docs/2.4/developer/>`_
-      for HTTP developer information
+      HTTP 開発者向けの情報です。
 
    `Mod_python - Integrating Python with Apache <http://www.modpython.org/python10/>`_
-      for details on how mod_python interfaces with Apache HTTP Server
+      mod_python と Apache HTTP Server のインタフェースに関する情報です。

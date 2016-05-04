@@ -1,17 +1,16 @@
 
 .. _tutorial:
 
-********
-Tutorial
-********
+****************
+チュートリアル
+****************
 
-*So how can I make this work?*
+*で、どうやったらちゃんと動くんですか？*
 
-This is a quick guide to getting started with mod_python programming
-once you have it installed. This is not an installation manual.
+この節は、インストールが終わって、mod_python プログラミングを始めてみる人のためのガイドです。
+インストールマニュアルではないので注意してください。
 
-It is also highly recommended to read (at least the top part of)
-the section :ref:`pythonapi` after completing this tutorial.
+この章を読んだら、 :ref:`pythonapi` の節の、すくなくとも冒頭の部分にも目を通しておきましょう。
 
 .. _tut-pub:
 

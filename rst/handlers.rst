@@ -2,27 +2,26 @@
 .. _handlers:
 
 *****************
-Standard Handlers
+標準ハンドラ
 *****************
 
 .. _hand-pub:
 
-Publisher Handler
-=================
+Publisher ハンドラ
+====================
 
 .. index::
    pair: publisher; handler
 
-The ``publisher`` handler is a good way to avoid writing your own
-handlers and focus on rapid application development. It was inspired
-by `Zope <http://www.zope.org/>`_ ZPublisher.
+``publisher`` ハンドラを使えば、わざわざ自分でハンドラを書く必要がなく、素早いアプリケーション開発に専念できます。
+``publisher`` ハンドラは、 `Zope <http://www.zope.org/>`_ の ZPublisher から着想を得ています。
 
 .. _hand-pub-intro:
 
-Introduction
+はじめに
 ------------
 
-To use the handler, you need the following lines in your configuration:::
+ハンドラを使うには、設定ファイルに以下のように書きます::
 
    <Directory /some/path>
      SetHandler mod_python
@@ -30,20 +29,16 @@ To use the handler, you need the following lines in your configuration:::
    </Directory>
 
 
-This handler allows access to functions and variables within a module
-via URL's. For example, if you have the following module, called
-:file:`hello.py`:::
+このハンドラを使うと、モジュール内の関数や変数を URL でアクセスできます。
+例えば、:file:`hello.py` という名の以下のようなモジュールがあるとしましょう::
 
    """ Publisher example """
 
    def say(req, what="NOTHING"):
       return "I am saying %s" % what
 
-
-A URL ``http://www.mysite.com/hello.py/say`` would return
-``'I am saying NOTHING``. A URL
-``http://www.mysite.com/hello.py/say?what=hello`` would
-return ``'I am saying hello``.
+これで、 ``http://www.mysite.com/hello.py/say`` という URL は ``I am saying NOTHING`` を返します。
+一方、 ``http://www.mysite.com/hello.py/say?what=hello`` は ``I am saying hello`` を返します。
 
 
 .. _hand-pub-alg:

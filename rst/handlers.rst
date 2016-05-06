@@ -413,56 +413,42 @@ debugging. You'll need to adjust your httpd configuration:::
    to display source code of your PSP pages!
 
 .. _hand-cgi:
+.. CGI Handler
 
-CGI Handler
-===========
+CGI ハンドラ
+=============
 
 .. index::
    pair: CGI; handler
 
 
-CGI handler is a handler that emulates the CGI environment under mod_python.
+CGI ハンドラは、 ``mod_python`` 下で CGI 環境をエミュレートするためのハンドラです。
 
-Note that this is not a ``'true'`` CGI environment in that it is
-emulated at the Python level. ``stdin`` and ``stdout`` are
-provided by substituting ``sys.stdin`` and ``sys.stdout``, and
-the environment is replaced by a dictionary. The implication is that
-any outside programs called from within this environment via
-``os.system``, etc. will not see the environment available to the
-Python program, nor will they be able to read/write from standard
-input/output with the results expected in a ``'true'`` CGI environment.
+この環境は、「真の」CGI 環境ではなく、Python レベルのエミュレーションなので注意してください。
+この環境では、 ``stdin`` および ``stdout`` は、それぞれ ``sys.stdin`` と ``sys.stdout`` に置き換わり、環境変数は辞書に置き換わります。
+そのため、CGI ハンドラの環境から ``os.system`` などで呼び出した外部プログラムは、 Python プログラム側で利用できる環境変数を見られないばかりか、 「真の」 CGI 環境ではできるはずの標準入出力を使った結果の読み書きも行えません。
 
-The handler is provided as a stepping stone for the migration of
-legacy code away from CGI. It is not recommended that you settle on
-using this handler as the preferred way to use mod_python for the long
-term. This is because the CGI environment was not intended for
-execution within threads (e.g. requires changing of current directory
-with is inherently not thread-safe, so to overcome this cgihandler
-maintains a thread lock which forces it to process one request at a
-time in a multi-threaded server) and therefore can only be implemented
-in a way that defeats many of the advantages of using mod_python in
-the first place.
+このハンドラは CGI の古いコードから移行するための飛び石として提供されています。
+``mod_python`` を使う方法として、このハンドラに長く腰を落ち着けるのはお勧めしません。
+なぜなら、この環境はスレッド内での実行を想定しておらず、 ``mod_python`` の数多くの利点を最初から台無しにしてしまうような実装しかできないからです
+(例えば、CGI の実行には現在のディレクトリの変更が必要ですが、これは本来スレッドセーフな操作ではありません。
+cgihandler はこの問題を解決するためにスレッドをロックして、マルチスレッドサーバであっても一度に一つのリクエストしか処理できないようにしてしまいます)。
 
-To use it, simply add this to your :file:`.htaccess` file:::
+CGI ハンドラを使いたければ、:file:`.htaccess` ファイルに::
 
    SetHandler mod_python
    PythonHandler mod_python.cgihandler
 
-As of version 2.7, the cgihandler will properly reload even indirectly
-imported module. This is done by saving a list of loaded modules
-(sys.modules) prior to executing a CGI script, and then comparing it
-with a list of imported modules after the CGI script is done.  Modules
-(except for whose whose __file__ attribute points to the standard
-Python library location) will be deleted from sys.modules thereby
-forcing Python to load them again next time the CGI script imports
-them.
+のように書くだけです。
 
-If you do not want the above behavior, edit the :file:`cgihandler.py`
-file and comment out the code delimited by ###.
+バージョン 2.7 からは、 cgihandler は間接的に import されたモジュールも正しくリロードできます。
+この機能は、 CGI スクリプトの呼び出し前にロード済みのモジュールのリスト (``sys.modules``) を保存しておき、CGI スクリプトを実行した後のリストと比較することで可能にしています。
+リロード対象のモジュールは (``__file__`` 属性が標準 Python ライブラリの置き場所を指しているものを除いて) ``sys.modules`` から除去されます。その結果、次に CGI スクリプトがモジュールを import するときに、Python にモジュールをリロードを強制します。
 
-Tests show the cgihandler leaking some memory when processing a lot of
-file uploads. It is still not clear what causes this. The way to work
-around this is to set the Apache ``MaxRequestsPerChild`` to a non-zero
-value.
+上記の動作を望まないのなら、 :file:`cgihandler.py` ファイルを編集して、
+``###`` で区切られているコードをコメントアウトしてください。
+
+テストの結果、 cgihandler は多数のファイルアップロードを処理する際に何らかのメモリリークを起こすことが分かっています。
+原因についてはよく分かっていません。この問題を回避するには、 Apache の ``MaxRequestsPerChild`` 設定をゼロでない値にしてください。
 
 

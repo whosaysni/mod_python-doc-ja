@@ -30,7 +30,7 @@ Publisher ハンドラ
 
 
 このハンドラを使うと、モジュール内の関数や変数を URL でアクセスできます。
-例えば、:file:`hello.py` という名の以下のようなモジュールがあるとしましょう::
+例えば、 :file:`hello.py` という名の以下のようなモジュールがあるとしましょう::
 
    """ Publisher example """
 
@@ -43,58 +43,47 @@ Publisher ハンドラ
 
 .. _hand-pub-alg:
 
-The Publishing Algorithm
-------------------------
+パブリッシュのアルゴリズム
+----------------------------
 
-The Publisher handler maps a URI directly to a Python variable or
-callable object, then, respectively, returns it's string
-representation or calls it returning the string representation of the
-return value.
+publisher ハンドラは URI を Python の変数や呼び出し可能オブジェクトに直接対応づけます。
+変数の場合には文字列表現を、呼び出しオブジェクトの場合には呼び出した戻り値の文字列表現を返します。
+
 
 .. index::
    pair: publisher; traversal
 
 .. _hand-pub-alg-trav:
 
-Traversal
-^^^^^^^^^
+.. _Traversal:
 
-The Publisher handler locates and imports the module specified in the
-URI. The module location is determined from the :attr:`request.filename`
-attribute. Before importing, the file extension, if any, is
-discarded.
+トラバース
+^^^^^^^^^^^
 
-If :attr:`request.filename` is empty, the module name defaults to
-``'index'``.
+publisher ハンドラは、 URI に指定したモジュールを探して import します。
+モジュールの位置は :attr:`request.filename` 属性で決まります。
+import の際、ファイル拡張子がある場合には無視します。
 
-Once module is imported, the remaining part of the URI up to the
-beginning of any query data (a.k.a. :const:`PATH_INFO`) is used to find an
-object within the module. The Publisher handler *traverses* the
-path, one element at a time from left to right, mapping the elements
-to Python object within the module.
+:attr:`request.filename` が空の場合には、 ``'index'`` をデフォルト値のモジュール名として使います。
 
-If no ``path_info`` was given in the URL, the Publisher handler will use
-the default value of ``'index'``. If the last element is an object inside
-a module, and the one immediately preceding it is a directory
-(i.e. no module name is given), then the module name will also default
-to ``'index'``.
+モジュールを import すると、URI の残りの部分からクエリデータまで (いわゆる :const:`PATH_INFO`) の部分を使って、モジュール内のオブジェクトを探します。
+publisher ハンドラは各要素をモジュール内のPython オブジェクトに対応づけながら、パスの要素を左から右にひとつづつ *トラバース* します。
 
-The traversal will stop and :const:`HTTP_NOT_FOUND` will be returned to
-the client if:
+URL に ``PATH_INFO`` がない場合、publisher ハンドラは ``index`` をデフォルト値に使います。
+パスの最後の要素がモジュール内のオブジェクト名で、かつその前にある要素がディレクトリ名の場合 (モジュール名が指定されていない場合)、モジュール名はデフォルト値の ``index`` になります。
+
+以下のような場合にはトラバースを停止して :const:`HTTP_NOT_FOUND` を返します:
 
 
-* Any of the traversed object's names begin with an underscore
-  (``'_'``). Use underscores to protect objects that should not be
-  accessible from the web.
+* トラバースしたオブジェクトの名前がアンダースコア (``_``) で始まっている場合。 
+  逆に、Web からアクセスさせたくないオブジェクトを保護するにはアンダースコアを使ってください。
 
-* A module is encountered. Published objects cannot be modules for
-  security reasons.
+* モジュールに到達した場合。セキュリティ上の理由から、モジュールはパブリッシュの対象にできません。
 
 
-If an object in the path could not be found, :const:`HTTP_NOT_FOUND`
-is returned to the client.
+パス上にオブジェクトが見つからなかった場合、クライアントに :const:`HTTP_NOT_FOUND` を返します。
 
-For example, given the following configuration:::
+例えば、以下のような設定があるとしましょう::
 
    DocumentRoot /some/dir
 
@@ -103,7 +92,7 @@ For example, given the following configuration:::
      PythonHandler mod_python.publisher
    </Directory>
 
-And the following :file:`/some/dir/index.py` file:::
+そして、以下のようなファイル :file:`/some/dir/index.py` があったとします::
 
    def index(req):
       return "We are in index()"
@@ -112,38 +101,33 @@ And the following :file:`/some/dir/index.py` file:::
       return "We are in hello()"
 
 
-Then:
+URL にアクセスした結果は次のようになります:
 
-* http://www.somehost/index/index will return ``'We are in index()'``
+* http://www.somehost/index/index は ``'We are in index()'`` を返します。
 
-* http://www.somehost/index/ will return ``'We are in index()'``
+* http://www.somehost/index/ は ``'We are in index()'`` を返します。
 
-* http://www.somehost/index/hello will return ``'We are in hello()'``
+* http://www.somehost/index/hello は ``'We are in hello()'`` を返します。
 
-* http://www.somehost/hello will return ``'We are in hello()'``
+* http://www.somehost/hello は ``'We are in hello()'`` を返します。
 
-* http://www.somehost/spam will return ``'404 Not Found'``
+* http://www.somehost/spam は ``'404 Not Found'`` を返します。
 
 
 .. _hand-pub-alg-args:
 
+.. _Argument Matching and Invocation:
 
-Argument Matching and Invocation
+引数のマッチングと呼び出し
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Once the destination object is found, if it is callable and not a
-class, the Publisher handler will get a list of arguments that the
-object expects. This list is compared with names of fields from HTML
-form data submitted by the client via ``POST`` or
-``GET``. Values of fields whose names match the names of callable
-object arguments will be passed as strings. Any fields whose names do
-not match the names of callable argument objects will be silently dropped,
-unless the destination callable object has a ``**kwargs`` style
-argument, in which case fields with unmatched names will be passed in the
-``**kwargs`` argument.
+publisher ハンドラがパブリッシュ対象のオブジェクトを見つけたとします。
+オブジェクトが呼び出し可能オブジェクトであってクラスでない場合、ハンドラはオブジェクトの受け取る引数のリストを調べます。
+次に、このリストを ``POST`` や ``GET`` 経由で受け取ったフォームデータのパラメタ名と比較します。
+引数と名前の一致するフィールドの値は、呼び出し可能オブジェクトの該当する引数に文字列で渡します。
+名前の一致しないフィールドは暗黙のまま捨てます。ただし、対象のオブジェクトが  ``**kwargs`` 形式の引数を受け取る場合には、名前の一致しなかったフィールドを ``**kwargs`` 引数で渡します。
 
-If the destination is not callable or is a class, then its string
-representation is returned to the client.
+パブリッシュ対象のオブジェクトが呼び出し可能オブジェクトの場合やクラスの場合、その文字列表現をクライアントに返します。
 
 
 .. index::

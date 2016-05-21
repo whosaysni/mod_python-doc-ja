@@ -361,41 +361,37 @@ Apache のバージョンによっては、 ``AuthAuthoritative`` や ``AuthBasi
 
 .. _tut-404-handler:
 
-Your Own 404 Handler
-====================
+.. _Your Own 404 Handler:
 
-In some cases, you may wish to return a 404 (:const:`HTTP_NOT_FOUND`) or
-other non-200 result from your handler.  There is a trick here.  if you
-return :const:`HTTP_NOT_FOUND` from your handler, Apache will handle
-rendering an error page.  This can be problematic if you wish your handler
-to render it's own error page.
+404 ハンドラを自作する
+========================
 
-In this case, you need to set ``req.status = apache.HTTP_NOT_FOUND``,
-render your page, and then ``return(apache.OK)``::
+場合によっては、 HTTP 404 (:const:`HTTP_NOT_FOUND`) や、HTTP 200 以外の結果を返したいことがあります。
+これにはちょっとしたトリックが必要です。
+ハンドラが :const:`HTTP_NOT_FOUND` を返すと、 Apache はエラーページをレンダリングして返します。
+そのため、自分のハンドラで自作のエラーページを返したいとなると、問題が発生します。
+
+そこで、 ``req.status = apache.HTTP_NOT_FOUND`` をセットしてページをレンダリングし、 ``return(apache.OK)`` を返してください::
 
    from mod_python import apache
 
    def handler(req):
       if req.filename[-17:] == 'apache-error.html':
-         #  make Apache report an error and render the error page
+         # エラーを Apache に伝えて、エラーページを出力させる
          return(apache.HTTP_NOT_FOUND)
       if req.filename[-18:] == 'handler-error.html':
-         #  use our own error page
+         # 自作のエラーページを出力する
          req.status = apache.HTTP_NOT_FOUND
-         pagebuffer = 'Page not here.  Page left, not know where gone.'
+         pagebuffer = '存在しないページか、どこかに移動してしまったページです。'
       else:
-         #  use the contents of a file
+         # ファイルコンテンツを生成する
          pagebuffer = open(req.filename, 'r').read()
 
-      #  fall through from the latter two above
+      # 上の3つのケースのうち後者2つのためのフォールスルー
       req.write(pagebuffer)
       return(apache.OK)
 
-Note that if wishing to returning an error page from a handler phase other
-than the response handler, the value ``apache.DONE`` must be returned
-instead of ``apache.OK``. If this is not done, subsequent handler phases
-will still be run. The value of ``apache.DONE`` indicates that processing
-of the request should be stopped immediately. If using stacked response
-handlers, then ``apache.DONE`` should also be returned in that situation
-to prevent subsequent handlers registered for that phase being run if
-appropriate.
+レスポンスハンドラ以外のフェーズでエラーページを生成して返したい時は、 ``apache.OK`` の代わりに、 ``apache.DONE`` を返さねばなりません。
+そうしないと、後続のハンドラフェーズが実行されてしまうからです。
+``apache.DONE`` は、リクエストの処理を直ちに停止させます。
+レスポンスハンドラを複数積み重ねて使っている場合も、同じフェーズに登録されている後続のハンドラを実行させたくない場合は、必要に応じて ``apache.DONE`` を使ってください。

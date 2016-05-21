@@ -3,83 +3,56 @@
 .. _history-and-license:
 
 *******************
-History and License
+歴史とライセンス
 *******************
 
-History
-=======
+.. _History:
 
-Mod_python originates from a project called
-`Httpdapy <http://www.modpython.org/httpdapy/>`_ (1997). For a
-long time Httpdapy was not called mod_python because Httpdapy was not
-meant to be Apache-specific. Httpdapy was designed to be
-cross-platform and in fact was initially written for the Netscape
-server (back then it was called Nsapy (1997)).
+mod_python の歴史
+===================
 
-Nsapy itself was based on an original concept and first code by Aaron
-Watters from "Internet Programming with Python" by Aaron Watters,
-Guido Van Rossum and James C. Ahlstrom, ISBN 1-55851-484-8.
+mod_python  は、もともと `Httpdapy <http://www.modpython.org/httpdapy/>`_ (1997) というプロジェクトに端を発しています。
+長い間、 httddapy が mod_python と呼ばれることはありませんでしたが、これは httpdapy が Apache 固有のものを目指してはいなかったからです。
+httpdapy はクロスプラットフォームになるよう設計されていて、実際、最初に書かれた httpdapy は Netscape サーバ向けでした (1997 年当時は Nsapy と呼ばれていました)。
 
-Without Aaron's inspiration, there would be no mod_python. Quoting
-from the Httpdapy README file::
+Nsapy 自体は独自のコンセプトに基づいていて、 "Internet Programming with Python" by Aaron Watters, Guido Van Rossum and James C. Ahlstrom, ISBN 1-55851-484-8 の中で、 Aaron Watters によって書かれました。
 
-   Although Nsapy only worked with Netscape servers, it was very
-   generic in its design and was based on some brilliant ideas that
-   weren't necessarily Netscape specific. Its design is a combination
-   of extensibility, simplicity and efficiency that takes advantage of
-   many of the key benefits of Python and is totally in the spirit of
-   Python.
+Aaron の洞察なくしては、 mod_python は生まれなかったでしょう。httpdpy の README ファイルには、以下のように書かれています::
 
-This excerpt from the Httpdapy README file describes well the
-challenges and the solution provided by embedding Python within the
-HTTP server::
+  Nsapy は Netscape サーバでしか動作しないが、その設計はきわめて汎用的で、 Netscape サーバに限定されない優れたアイデアに根ざしている。
+  拡張性、簡潔さ、効率性の組み合わせによって出来ていて、 Python のもたらす恩恵をあますところなく使い、 Python の精神を体現している。
 
-   While developing my first WWW applications a few years back, I
-   found that using CGI for programs that need to connect to
-   relational databases (commercial or not) is too slow because every
-   hit requires loading of the interpreter executable which can be
-   megabytes in size, any database libraries that can themselves be
-   pretty big, plus, the database connection/authentication process
-   carries a very significant overhead because it involves things like
-   DNS resolutions, encryption, memory allocation, etc.. Under
-   pressure to speed up the application, I nearly gave up the idea of
-   using Python for the project and started researching other tools
-   that claimed to specialize in www database integration. I did not
-   have any faith in MS's ASP; was quite frustrated by Netscape
-   LiveWire's slow performance and bugginess; Cold Fusion seemed
-   promising, but I soon learned that writing in html-like tags makes
-   programs as readable as assembly. Same is true for PHP. Besides, I
-   *really* wanted to write things in Python.
+以下に引用した httpdapy の README ファイルは、当時の課題と、 HTTP サーバへに Python を埋め込んで解決した経緯をうまく説明しています::
 
-   Around the same time the Internet Programming With Python book came
-   out and the chapter describing how to embed Python within Netscape
-   server immediately caught my attention.  I used the example in my
-   project, and developed an improved version of what I later called
-   Nsapy that compiled on both Windows NT and Solaris.
+  数年前、初めて WWW アプリケーションを開発しているときに、(商用のリレーショナルデータベースであれ、それ以外であれ) RDB に接続する必要のあるプログラムを CGI で組むと、非常に低速になるということがわかりました。
+  というのも、検索を行うたびに数メガバイトものサイズのインタプリタがロードされるし、データベースライブラリ自体も大きくて、おまけに、データベースへの接続と認証のプロセス、 DNS の名前解決や暗号化、メモリ確保... といった処理が入るために、オーバヘッドが非常に大きくなるからです。
 
-   Although Nsapy only worked with Netscape servers, it was a very
-   intelligent generic OO design that, in the spirit of Python, that
-   lent itself for easy portability to other web servers.
+  アプリケーションの高速化に迫られて、私は Python を使い続けるのをあきらめかけて、WWW とデータベースの統合に特化していると謳ったツールを探しはじめました。
+  MS の ASP は、全く信頼する気になれませんでしたし、Netscape の LiveWire の低速さとバグの多さにはイライラしました。
+  Cold Fusion は有望でしたが、html ライクなタグを書くのは、プログラムの可読性をアセンブラ並みにすると、すぐに気づきました。
+  PHP についても同じです。何よりも、私は Python で書きたいと *心の底から* 願っていたのです。
 
-   Incidently, the popularity of Netscape's servers was taking a turn
-   south, and so I set out to port Nsapy to other servers starting
-   with the most popular one, Apache. And so from Nsapy was born
-   Httpdapy.
+  ちょうどそのころ、 Internet Programming With Python という本が出版され、Netscape サーバに Python を埋め込む方法を解説した章に惹かれました。
+  その例題を自分のプロジェクトに使ってみて、後にNsapy と呼ばれる、 Windows NT と Solaris の両方でコンパイルできる改良版を開発したのです。
+  Naspy はNetscape サーバでしか動きませんでしたが、Naspy はPython の精神に適った、とても洗練された汎用のオブジェクト指向設計だったため、他の Web サーバにかんたんに移植できました。
+
+  折しも、 Netscape 製のサーバは人気を失いつつありました。
+  そこで私は Nsapy を他のサーバに移植することにしました。
+  手始めに、もっとも人気のあった Apache に移植したのです。
+  かくして、Nsapy から httpdapy が誕生したのです。
+
+\... この話には続きがあります。
+正直なところ、全てのサーバ向けにHttpdapy を書くのは、最初に考えていたよりもちょっと大きな仕事になるし、さして興味も沸かなかったのです。
+
+それよりも、人気の高い、 Perl の Apache 拡張である mod_perl と同じような (あるいはそれ以上の) 機能をもたらすような Python の Apache 拡張を作るのはとてもワクワクするできごとに思えたのです。
+
+こうして mod_python はできました。最初の mod_python をリリースしたのは 2000 年の 3 月でした。
 
 
-...continuing this saga, yours truly later learned that writing
-Httpdapy for every server is a task a little bigger and less
-interesting than I originally imagined.
+.. _License:
 
-Instead, it seemed like providing a Python counterpart to the popular
-Perl Apache extension mod_perl that would give Python users the same
-(or better) capability would be a much more exciting thing to do.
-
-And so it was done. The first release of mod_python happened in May of
-2000.
-
-License
-=======
+ライセンス
+===========
 
 Licensed under the Apache License, Version 2.0 (the "License"); you
 may not use this file except in compliance with the License.  You may

@@ -2,7 +2,7 @@
 .. _changes:
 
 *******
-Changes
+変更点
 *******
 
 .. _changes_from_3_3_1:
@@ -259,13 +259,13 @@ Bug Fixes
 Changes from version 2.x
 ========================
 
-* Mod_python 3.0 no longer works with Apache 1.3, only Apache 2.x is supported.
-* Mod_python no longer works with Python versions less than 2.2.1
-* Mod_python now supports Apache filters.
-* Mod_python now supports Apache connection handlers.
-* Request object supports internal_redirect().
-* Connection object has read(), readline() and write().
-* Server object has get_config().
-* Httpdapi handler has been deprecated.
-* Zpublisher handler has been deprecated.
-* Username is now in req.user instead of req.connection.user
+* Mod_python はもはや Apache 1.3 では動作せず、Apache 2.x だけをサポートするようになりました。
+* Python 2.2.1 よりも前のバージョンでは動作しなくなりました。
+* Apache フィルタをサポートするようになりました。
+* Apache 接続ハンドラをサポートするようになりました。
+* リクエストオブジェクトがinternal_redirect() をサポートするようになりました。
+* 接続オブジェクトに read(), readline() および write() が追加されました。
+* サーバオブジェクトに get_config() が追加されました。
+* httpdapi ハンドラが撤廃されました。
+* Zpublisher ハンドラが撤廃されました。
+* ユーザ名はreq.connection.user ではなくreq.user になりました。

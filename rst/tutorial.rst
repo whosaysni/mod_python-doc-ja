@@ -14,33 +14,33 @@
 
 .. _tut-pub:
 
-A Quick Start with the Publisher Handler
+\section{publisher ハンドラを使ってみる\label{tut-pub}}
+
+publisher ハンドラを使ってみる
 ========================================
 
-This section provides a quick overview of the Publisher handler for
-those who would like to get started without getting into too much
-detail. A more thorough explanation of how mod_python handlers work
-and what a handler actually is follows on in the later sections of the
-tutorial.
 
-The :ref:`hand-pub` is provided as one of the standard
-mod_python handlers. To get the publisher handler working, you will
-need the following lines in your config::
+この節では、詳しいことはさておいて、 mod_python を使い始めてみたい人のために、 publisher ハンドラの概要を簡単に説明します。
+mod_python ハンドラの動作の仕組みや、ハンドラとは一体何なのか、といった話題は、チュートリアルの後の節で詳しく説明します。
+
+:ref:`hand-pub` は、 mod_python の標準ハンドラの一つです。
+このハンドラを使うには、設定ファイルに以下のように書きます::
 
    AddHandler mod_python .py
    PythonHandler mod_python.publisher
    PythonDebug On
 
-The following example demonstrates a simple feedback form. The form
-asks for a name, e-mail address and a comment which are then used to
-construct and send a message to the webmaster.  This simple
-application consists of two files: :file:`form.html` - the form to
-collect the data, and :file:`form.py` - the target of the form's
-action.
+以下の例は、フィードバックを送信する簡単なフォームです。
+このフォームは、名前、電子メールアドレス、そしてコメントをユーザに入力させ、その情報を使ってウェブ管理者にメッセージを送ります。
+この簡単なアプリは、二つのファイル: データを集めるためのフォームの「 :file:`form.html` 」と、
+フォームのアクションターゲットの「 :file:`form.py` 」からなります。
+
+フォームの HTML ソースを以下に示します::
 
 Here is the html for the form::
 
    <html>
+      フィードバックを入力して送ってください:
       Please provide feedback below:
    <p>                           
    <form action="form.py/email" method="POST">
@@ -53,123 +53,107 @@ Here is the html for the form::
    </form>
    </html>  
 
-The ``action`` element of the ``<form>`` tag points to
-``form.py/email``. We are going to create a file called
-:file:`form.py`, like this::
+``<form>`` タグの ``action`` 要素は ``form.py/email`` を指しています。
+次に、以下のような内容で :file:`form.py` という名前のファイルを作成します::
+
+   # coding: utf-8
 
    import smtplib
+   from email.MIMEText import MIMEText
 
    WEBMASTER = "webmaster"   # webmaster e-mail
    SMTP_SERVER = "localhost" # your SMTP server
 
    def email(req, name, email, comment):
 
-       # make sure the user provided all the parameters
+       # ユーザが全ての情報を入力したか確かめる
        if not (name and email and comment):
-           return "A required parameter is missing, \
-                  please go back and correct the error"
+           return u"必要な情報が入力されていません。戻って正しく入力してください。"
 
-       # create the message text
-       msg = """\
-   From: %s                                                                                                                                           
-   Subject: feedback
-   To: %s
-
-   I have the following comment:
+       # メッセージテキストを作成する
+       msg = u"""\
+   コメントを送ります:
 
    %s
 
-   Thank You,
+   敬具
 
    %s
 
    """ % (email, WEBMASTER, comment, name)
 
-       # send it out
+       # 送信する
+       mime_msg = MIMEText(msg.encode('utf-8'), 'plain', 'UTF-8')
+       mime_msg['From'] = email
+       mime_msg['MIME-Version'] = '1.0'
+       mime_msg['Subject'] = 'feedback'
+       mime_msg['Content-Type'] = 'text/html; charset=utf-8'
+       mime_msg['Content-Transfer-Encoding'] = 'quoted-printable'
        conn = smtplib.SMTP(SMTP_SERVER)
-       conn.sendmail(email, [WEBMASTER], msg)
+       conn.sendmail(email, [WEBMASTER], str(mime_msg))
        conn.quit()
 
-       # provide feedback to the user
-       s = """\
+       # ユーザにフィードバックの内容を返す
+       s = u"""\
    <html>
 
-   Dear %s,<br>                                                                                                                                       
-   Thank You for your kind comments, we
-   will get back to you shortly.
+   %s さん<br>
 
-   </html>""" % name
+               
+   コメントありがとうございました。すぐにお返事いたします。
+
+   </html>""" % (name)
 
        return s
 
-When the user clicks the Submit button, the publisher handler will
-load the :func:`email` function in the :mod:`form` module,
-passing it the form fields as keyword arguments. It will also pass the
-request object as ``req``.
+ユーザが「送信 (Submit)」ボタンを押すと、publisher ハンドラはフォームの各フィールドの情報をキーワード引数にして、 :mod:`form` モジュール内の関数 :func:`email` を呼び出します。
+その際、リクエストオブジェクトを ``req`` 引数で渡します。
 
-You do not have to have ``req`` as one of the arguments if you do not
-need it. The publisher handler is smart enough to pass your function
-only those arguments that it will accept.
+必要がなければ、 ``req`` を渡す必要はありません。
+publisher ハンドラは賢いので、関数が受け取れる引数だけを渡します。
 
-The data is sent back to the browser via the return value of the
-function.
+データは関数の戻り値を介してブラウザに戻されます。
 
-Even though the Publisher handler simplifies mod_python programming a
-great deal, all the power of mod_python is still available to this
-program, since it has access to the request object. You can do all the
-same things you can do with a "native" mod_python handler, e.g. set
-custom headers via ``req.headers_out``, return errors by raising
-:exc:`apache.SERVER_ERROR` exceptions, write or read directly to
-and from the client via :meth:`req.write()` and :meth:`req.read()`,
-etc.
+publisher ハンドラは、 mod_python を使ったプログラミングをとても簡単にしながらも、リクエストオブジェクトにアクセスできるので、 mod_python の力を余すところなく使えます。
+同じようなことは、「ネイティブの」mod_python ハンドラでもできます。
+例えば、 ``req.headers_out`` でヘッダをカスタマイズしたり、 :exc:`apache.SERVER_ERROR` 例外を送出してエラーを返したり、 :meth:`req.write()` や :meth:`req.read()` を使って、クライアントに対して直接データを読み書きしたりできます。
 
-Read Section :ref:`hand-pub` for more information on the publisher
-handler.
+publisher ハンドラの詳しい情報は :ref:`hand-pub` の節を参照してください。
 
 .. _tut-overview:
+.. _Quick Overview of how Apache Handles Requests:
 
-Quick Overview of how Apache Handles Requests
-=============================================
-
-Apache processes requests in :dfn:`phases`. For example, the first
-phase may be to authenticate the user, the next phase to verify
-whether that user is allowed to see a particular file, then (next
-phase) read the file and send it to the client. A typical static file
-request involves three phases: (1) translate the requested URI to a
-file location (2) read the file and send it to the client, then (3)
-log the request. Exactly which phases are processed and how varies
-greatly and depends on the configuration.
-
-A :dfn:`handler` is a function that processes one phase. There may be
-more than one handler available to process a particular phase, in
-which case they are called by Apache in sequence. For each of the
-phases, there is a default Apache handler (most of which by default
-perform only very basic functions or do nothing), and then there are
-additional handlers provided by Apache modules, such as mod_python.
-
-Mod_python provides every possible handler to Apache. Mod_python
-handlers by default do not perform any function, unless specifically
-told so by a configuration directive. These directives begin with
-``'Python'`` and end with ``'Handler'``
-(e.g. ``PythonAuthenHandler``) and associate a phase with a Python
-function. So the main function of mod_python is to act as a dispatcher
-between Apache handlers and Python functions written by a developer
-like you.
-
-The most commonly used handler is ``PythonHandler``. It handles the
-phase of the request during which the actual content is
-provided. Because it has no name, it is sometimes referred to as as
-:dfn:`generic` handler. The default Apache action for this handler is
-to read the file and send it to the client. Most applications you will
-write will provide this one handler. To see all the possible
-handlers, refer to Section :ref:`directives`.
-
-.. _tut-what-it-do:
-
-So what Exactly does Mod-python do?
+Apache によるリクエスト処理の概要
 ===================================
 
-Let's pretend we have the following configuration::
+Apache は、リクエストを複数の :dfn:`フェイズ` で処理します。
+例えば、最初のフェイズではユーザを認証し、次のフェイズではユーザが特定のファイルを閲覧する許可を有しているか調べ、続いて (次のフェイズで) ファイルを読み出してクライアントに送信する、といった具合です。
+典型的な静的ファイルのリクエスト処理では、 (1) 要求された URI を実際のファイルの場所に変換する、 (2) ファイルを読み出してクライアントに送信する、 (3) リクエストをログに記録する、という三つのフェイズがあります。
+厳密にどのフェイズがどのように処理されるかは、設定によって大きく変わります。
+
+:dfn:`ハンドラ` (handler) は、一つのフェイズを処理する関数です。
+ある特定のフェイズの処理に対して、複数のハンドラを利用できることもあり、その場合、 Apache は各ハンドラを順番に呼び出します。
+各フェイズに対して、まず、Apache の標準のハンドラを呼び出します (ほとんどは、デフォルトの設定ｈでは極めて基本的な処理しかしないか、あるいは何も行いません)。続いて、 mod_python のような Apache モジュールが提供している追加のハンドラを呼び出します。
+
+mod_python は、Apache で使える全てのハンドラを提供しています。
+各々のハンドラは、設定ディレクティブで特に設定しない限り、何も実行しません。
+mod_python の設定ディレクティブは ``PythonAuthenHandler`` のように、 ``Python`` で始まって ``Handler`` で終わる名前で、一つのハンドラを一つの Python の関数に対応させます。
+つまり、mod_python の主な機能は、みなさんのような開発者が書いた Python の関数と、Apache のハンドラと間を取り持つディスパッチャの働きをすることにあります。
+
+もっともよく使うハンドラは ``PythonHandler`` です。
+このハンドラは、実際のコンテンツを提供する際の、リクエストのフェイズを処理します。
+このフェイズには名前がないので、 :dfn:`汎用` (generic) ハンドラと呼ばれることがあります。
+このハンドラの Apache のデフォルトの動作は、ファイルの読み込みとクライアントへの送信です。
+読者のみなさんがアプリを書く場合、たいていはこのハンドラをオーバライドすることになるでしょう。
+どんなハンドラを利用できるのか知りたければ、 :ref:`directives` の節を参照してください。
+
+.. _tut-what-it-do:
+.. _So what Exactly does Mod-python do?:
+
+mod_python は実際何をやっているのか
+=====================================
+
+仮に、以下のように設定しているとしましょう::
 
    <Directory /mywebdir>
        AddHandler mod_python .py
@@ -177,11 +161,10 @@ Let's pretend we have the following configuration::
        PythonDebug On
    </Directory>
 
-Note: ``/mywebdir`` is an absolute physical path in this case.
+注意: ここでは、 ``/mywebdir`` は物理的な絶対パスです。
 
-And let's say that we have a python program (Windows users: substitute
-forward slashes for backslashes) :file:`/mywedir/myscript.py` that looks like
-this::
+さらに、以下のような内容の Python プログラムが :file:`/mywebdir/myscript.py`
+ にあるとします (Windows ユーザは、ファイル名のスラッシュをバックスラッシュに置き換えてください)::
 
    from mod_python import apache
 
@@ -192,48 +175,42 @@ this::
 
        return apache.OK
 
-Here is what's going to happen: The ``AddHandler`` directive tells
-Apache that any request for any file ending with :file:`.py` in the
-:file:`/mywebdir` directory or a subdirectory thereof needs to be
-processed by mod_python. The ``'PythonHandler myscript'`` directive
-tells mod_python to process the generic handler using the
-`myscript` script. The ``'PythonDebug On'`` directive instructs
-mod_python in case of an Python error to send error output to the
-client (in addition to the logs), very useful during development.
+すると，こんなことが起きます: まず、 ``AddHandler`` ディレクティブは、
+Apache に、 :file:`/mywebdir` とそれ以下のディレクトリにある :file:`.py` で終わる全てのファイルへのリクエストを、全て mod_python で処理するよう指示します。
+``PythonHandler myscript`` ディレクティブは、 mod_python の汎用ハンドラに `myscript` を使ってリクエストを処理するよう指示します。
+``PythonDebug On`` ディレクティブは、 Python のエラーが発生した場合に、エラー出力を (ログへの記録に加えて) クライアントに送信するよう mod_python に指示します。
+開発中には、この機能はとても便利です。
 
-When a request comes in, Apache starts stepping through its request
-processing phases calling handlers in mod_python. The mod_python
-handlers check whether a directive for that handler was specified in
-the configuration. (Remember, it acts as a dispatcher.)  In our
-example, no action will be taken by mod_python for all handlers except
-for the generic handler. When we get to the generic handler,
-mod_python will notice ``'PythonHandler myscript'`` directive and do
-the following:
+さて、リクエストが送られてくると、Apache は mod_python のハンドラを呼び出してリクエスト処理フェイズを開始します。
+mod_python のハンドラは、設定の中から、呼びだされたハンドラに関するディレクティブをチェックして、定義されているハンドラを探します (mod_python はディスパッチャのように働くことを思い出してください)。
+ここで示した例題では、generic ハンドラ以外で、mod_python がするべきことは何もありません。
+generic ハンドラの番になると、mod_python は ``PythonHandler myscript`` ディレクティブがあることに気づき、以下のような処理を行います:
 
-* If not already done, prepend the directory in which the
-  ``PythonHandler`` directive was found to ``sys.path``.
+``PythonHandler`` 
+``sys.path`` に追加されていなければ追加します。
 
-* Attempt to import a module by name ``myscript``. (Note that if
-  ``myscript`` was in a subdirectory of the directory where
-  ``PythonHandler`` was specified, then the import would not work
-  because said subdirectory would not be in the ``sys.path``. One
-  way around this is to use package notation, e.g. 
-  ``'PythonHandler subdir.myscript'``.)
+* ``PythonHandler`` ディレクティブの定義されているディレクトリを、 ``sys.path`` の先頭に (まだ付加していなければ) 付加します。
 
-* Look for a function called ``handler`` in module ``myscript``.
+* ``myscript`` という名前のモジュールを import しようと試みます。
+  (``myscript`` が、 ``PythonHandler`` ディレクティブの指定されているディレクトリの直下ではなく、サブディレクトリにある場合、import はうまくいかないので注意してください。
+  サブディレクトリが ``sys.path`` に入っていないからです。
+  ``PythonHandler subdir.myscript`` のように、パッケージ表記を使えば、この問題を回避できます。)
 
-* Call the function, passing it a request object. (More on what a
-  request object is later).
+* ``myscript`` モジュール中から関数 ``handler`` を探します。
 
-* At this point we're inside the script, let's examine it line-by-line: 
+* リクエストオブジェクトを渡して ``handler`` を呼び出します (リクエストオブジェクトについては、後で詳しく述べます)。
+
+
+
+* この時点で、処理はスクリプトの中に移ります。スクリプトを一行づつ見ていきましょう:
 
   * ::
 
        from mod_python import apache
 
-    This imports the apache module which provides the interface to
-    Apache. With a few rare exceptions, every mod_python program will have
-    this line.
+    この行で、Apache へのインタフェースを提供している apache モジュールを
+import します。
+    ごく少数の例外を除いて、mod_python のプログラムには、だいたいこの行があるはずです。
 
   .. index::
      single: handler
@@ -242,79 +219,62 @@ the following:
 
        def handler(req):
 
-    This is our :dfn:`handler` function declaration. It
-    is called ``'handler'`` because mod_python takes the name of the
-    directive, converts it to lower case and removes the word
-    ``'python'``. Thus ``'PythonHandler'`` becomes
-    ``'handler'``. You could name it something else, and specify it
-    explicitly in the directive using ``'::'``. For example, if the
-    handler function was called ``'spam'``, then the directive would
-    be ``'PythonHandler myscript::spam'``.
 
-    Note that a handler must take one argument - the :ref:`pyapi-mprequest`.
-    The request object is an object that provides all of the
-    information about this particular request - such as the IP of
-    client, the headers, the URI, etc. The communication back to the
-    client is also done via the request object, i.e. there is no
-    "response" object.
+    :dfn:`ハンドラ` (handler) 関数の宣言です。
+    mod_python は、ディレクティブ名を小文字表記にして、先頭の ``python`` を取り除いた名前をハンドラ名に使うので、 ``PythonHandler`` は ``handler`` という名前になるのです。
+    ハンドラ関数は別の名前にもできます。その場合は、ディレクティブで  ``::`` を使って明示します。
+    例えば、ハンドラが ``spam`` という関数だったなら、ディレクティブは ``PythonHandler myscript::spam`` になったでしょう。
+
+    ハンドラは :ref:`pyapi-mprequest` という引数を取らねばなりません。
+    リクエストオブジェクトとは、例えばクライアントの IP アドレス、ヘッダ、 URI といった、あるリクエストに関する全ての情報の入ったオブジェクトです。
+    クライアントへの返信も request オブジェクトを介して行います。
+    つまり、「応答オブジェクト (response object)」はありません。
 
   * ::
 
        req.content_type = "text/plain"
 
-    This sets the content type to ``'text/plain'``. The default is
-    usually ``'text/html'``, but because our handler does not produce
-    any html, ``'text/plain'`` is more appropriate.  You should always
-    make sure this is set *before* any call to ``'req.write'``. When
-    you first call ``'req.write'``, the response HTTP header is sent
-    to the client and all subsequent changes to the content type (or
-    other HTTP headers) have no effect.
+    この行では、コンテンツタイプを ``text/plain`` に設定しています。
+    デフォルトの設定は ``text/html`` ですが、この例のハンドラが生成するのは HTMLではなく、 ``text/plain`` の方がふさわしいからです。
+    コンテンツタイプの設定は、必ず ``'req.write'`` を呼ぶ *前に* 行ってください。
+    先に ``'req.write'`` を呼び出してしまうと、クライアントにレスポンス HTTP ヘッダが送信されてしまい、後でコンテンツタイプ (や、他のヘッダ) を変更しても、何の効果もありません。
 
   * ::
 
        req.write("Hello World!")
 
-    This writes the ``'Hello World!'`` string to the client.
+    文字列``Hello World!`` をクライアントに送信します。.
 
   * ::
 
        return apache.OK
 
-    This tells Apache that everything went OK and that the request has
-    been processed. If things did not go OK, this line could return
-    :const:`apache.HTTP_INTERNAL_SERVER_ERROR` or
-    :const:`apache.HTTP_FORBIDDEN`. When things do not go OK, Apache
-    logs the error and generates an error message for the client.
+    全ての処理がうまくいき、リクエストの処理を終えたことを Apache に伝えます。
+    処理がうまく行かなかった場合には、この行で :const:`apache.HTTP_INTERNAL_SERVER_ERROR` や :const:`apache.HTTP_FORBIDDEN` を返すことになります。
+    処理がうまく行かなかった場合、 Apache はエラーをログに記録して、クライアント向けのエラーメッセージを生成します。
 
 .. note::
 
-  It is important to understand that in order for the handler code to
-  be executed, the URL needs not refer specficially to
-  :file:`myscript.py`. The only requirement is that it refers to a
-  :file:`.py` file. This is because the ``AddHandler mod_python .py``
-  directive assignes mod_python to be a handler for a file *type*
-  (based on extention ``.py``), not a specific file. Therefore the
-  name in the URL does not matter, in fact the file referred to in the
-  URL doesn't event have to exist. Given the above configuration,
-  ``'http://myserver/mywebdir/myscript.py'`` and
-  ``'http://myserver/mywebdir/montypython.py'`` would yield the exact
-  same result.
+  大事なのは、ハンドラコードを実行するために、必ずしも URL で :file:`myscript.py` を参照しなくてもよいということです。
+  必要なのは、 URL に :file:`.py` が入っていることだけです。
+  ``AddHandler mod_python .py`` は、 mod_python に対して、特定のファイルではなく、 (``.py`` という拡張子の) *ファイルタイプ* に対するアクセスを、ハンドラで処理するよう指示しています。
+  そのため、 URL でどんなファイル名を指定するかは関係なく、ファイルが存在している必要すらないのです。
+  この設定の下では、 ``http://myserver/mywebdir/myscript.py`` も ``http://myserver/mywebdir/montypython.py`` も、全く同じ結果を返します。
 
 
 .. _tut-more-complicated:
+.. _Now something More Complicated - Authentication:
 
-Now something More Complicated - Authentication
-===============================================
+今度はもっと複雑なものを - 認証
+==================================
 
-Now that you know how to write a basic handler, let's try
-something more complicated.
+基本的なハンドラの書き方を理解したところで、もう少し複雑なものに取り組んでみましょう。
 
-Let's say we want to password-protect this directory. We want the
-login to be ``'spam'``, and the password to be ``'eggs'``.
+ディレクトリをパスワードで保護したいとしましょう。ログイン名は ``spam`` 、パスワードは ``eggs`` にします。
 
-First, we need to tell Apache to call our *authentication*
-handler when authentication is needed. We do this by adding the
-``PythonAuthenHandler``. So now our config looks like this::
+まず、認証が必要な場合には、 *認証 (authentication)* ハンドラを呼び出すようApache に伝えておく必要があります。
+設定には、 ``PythonAuthenHandler`` を使います。
+設定ファイルは以下のようになります::
 
    <Directory /mywebdir>
        AddHandler mod_python .py
@@ -323,14 +283,12 @@ handler when authentication is needed. We do this by adding the
        PythonDebug On
    </Directory>
 
-Notice that the same script is specified for two different
-handlers. This is fine, because if you remember, mod_python will look
-for different functions within that script for the different handlers.
+二つのハンドラの指定が、同じスクリプトを指しています。
+これでかまいません。というのも、ご存知のように、mod_python は異なるハンドラに対して異なる名前の関数をスクリプトから探し出すからです。
 
-Next, we need to tell Apache that we are using Basic HTTP
-authentication, and only valid users are allowed (this is fairly basic
-Apache stuff, so we're not going to go into details here). Our config
-looks like this now::
+次に、Basic HTTP 認証を使って、有効なユーザだけを許可するよう、Apache に指示
+します (かなり基本的な Apache の設定なので、ここでは詳しく説明しません)。
+設定ファイルは以下のようになりました::
 
    <Directory /mywebdir>
       AddHandler mod_python .py
@@ -342,14 +300,11 @@ looks like this now::
       require valid-user
    </Directory>
 
-Note that depending on which version of Apache is being used, you may need
-to set either the \code{AuthAuthoritative} or ``AuthBasicAuthoritative``
-directive to ``Off`` to tell Apache that you want allow the task of
-performing basic authentication to fall through to your handler.
+Apache のバージョンによっては、 ``AuthAuthoritative`` や ``AuthBasicAuthoritative`` ディレクティブを ``Off`` にして、 Basic 認証の処理が mod_python のハンドラに回ってくるようにせねばなりません。
 
-Now we need to write an authentication handler function in
-:file:`myscript.py`. A basic authentication handler would look like
-this::
+さて、今度は :file:`myscript.py` に認証のハンドラを書きましょう。
+認証ハンドラは以下のようになります::
+
 
    from mod_python import apache
 
@@ -363,54 +318,46 @@ this::
        else:
           return apache.HTTP_UNAUTHORIZED
 
-Let's look at this line by line:
+一行づつ見てゆきましょう:
 
 * ::
 
      def authenhandler(req):
 
-  This is the handler function declaration. This one is called
-  ``authenhandler`` because, as we already described above,
-  mod_python takes the name of the directive
-  (``PythonAuthenHandler``), drops the word ``'Python'`` and converts
-  it lower case.
-
+  ハンドラ関数の宣言です。
+  上でも説明したように、mod_python は、ディレクティブの名前 (``PythonAuthenHandler``)から先頭の ``Python`` を落とし、小文字にした文字列を関数名にするので、関数名は ``authenhandler`` です。
+     
 * ::
 
      pw = req.get_basic_auth_pw()
-  
-  This is how we obtain the password. The basic HTTP authentication
-  transmits the password in base64 encoded form to make it a little
-  bit less obvious. This function decodes the password and returns it
-  as a string. Note that we have to call this function before obtaining
-  the user name.
+
+  これで、パスワードを取得します。
+  Basic HTTP 認証は、パスワードを base64 エンコード形式で、ほんのちょっとだけ分かりにくくして伝送します。
+  この関数は、パスワードをデコードして、文字列にして返します。
+  この関数はユーザ名を取得する前に呼び出さねばなりません。
 
 * ::
 
      user = req.user
   
-  This is how you obtain the username that the user entered. 
+  ユーザが入力したユーザ名を取得します。
 
 * ::
 
      if user == "spam" and pw == "eggs":
          return apache.OK
 
-
-  We compare the values provided by the user, and if they are what we
-  were expecting, we tell Apache to go ahead and proceed by returning
-  :const:`apache.OK`. Apache will then consider this phase of the
-  request complete, and proceed to the next phase. (Which in this case
-  would be :func:`handler()` if it's a ``'.py'`` file).
+  ユーザが入力した値を比較し、期待通りの値なら、  :const:`apache.OK` を返して、Apache に処理を先に進めさせます。
+  Apache は、このリクエストのフェイズが完了したものとみなし、次のフェイズに進みます。
+  (``.py`` ファイルに対するリクエストなら、次は :func:`handler()` を呼び出します。)
 
 * ::
 
      else:
          return apache.HTTP_UNAUTHORIZED 
 
-  Else, we tell Apache to return :const:`HTTP_UNAUTHORIZED` to the
-  client, which usually causes the browser to pop a dialog box asking
-  for username and password.
+  期待通りの値でなければ、Apache に :const:`HTTP_UNAUTHORIZED` を返させます。
+  この戻り値を受け取ったブラウザは、通常、ユーザ名とパスワードの入力を促すダイアログボックスを表示します。
 
 .. _tut-404-handler:
 

@@ -454,26 +454,17 @@ PythonConnectionHandler
 .. index::
    single: PythonConnectionHandler
 
-接続を接続ハンドラ*handler* で処理するよう指定します。
-*Handler* には単一の引数、接続オブジェクトが渡されます。
-
-*Handler*はモジュール名で、
-``::``のあとに続けて呼出し可能オブジェクト名をつけられます。
-呼出し可能オブジェクトの名前を省略した場合、
-デフォルトで``connectionhandler``になります。
-
 `書式: <http://httpd.apache.org/docs-2.4/mod/directive-dict.html#Syntax>`_ PythonConnectionHandler handler |br|
 `コンテキスト: <http://httpd.apache.org/docs-2.4/mod/directive-dict.html#Context>`_ server config |br|
 `モジュール: <http://httpd.apache.org/docs-2.4/mod/directive-dict.html#Module>`_ mod_python.c |br|
 
 
-Specifies that the connection should be handled with *handler*
-connection handler. *handler* will be passed a single argument -
-the connection object.
+接続を接続ハンドラ*handler* で処理するよう指定します。
+*Handler* には単一の引数、接続オブジェクトが渡されます。
 
-*Handler* is a module name optionally followed ``::`` and a
-callable object name. If callable object name is omitted, it will
-default to ``'connectionhandler'``.
+*Handler*はモジュール名で、
+``::`` のあとに続けて呼出し可能オブジェクト名をつけられます。
+呼出し可能オブジェクトの名前を省略した場合、デフォルトで ``connectionhandler`` になります。
 
 handler で参照する *モジュール* は、完全なモジュール名にできます (パッケージのドット表記を使えます)。
 また、モジュールのコードが書かれたファイルの実際のパスでもかまいません。
@@ -482,10 +473,8 @@ handler で参照する *モジュール* は、完全なモジュール名に�
 
 .. _dir-other:
 
-\section{その他のディレクティブ\label{dir-other}}
-
-Other Directives
-==================
+その他のディレクティブ
+=========================
 
 .. _dir-other-epd:
 
